@@ -2,7 +2,7 @@ from pathlib import Path
 
 from raceindycar.pdf_scrape import enrichment_map, finalize_record
 
-EXAMPLE_PRACTICE_PDF = Path(__file__).resolve().parent.parent / "example_practice_results.pdf"
+EXAMPLE_PRACTICE_PDF = Path(__file__).resolve().parent / "example_practice_results.pdf"
 
 
 def blank_record(**overrides):
