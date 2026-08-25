@@ -32,16 +32,29 @@ LINESTYLES = ("-", "--", ":", "-.")
 MARKERS = ("o", "s", "^", "D")
 
 
-def match_team_color(name):
-    needle = str(name or "").strip().casefold()
-    if not needle:
-        return None
-    if needle in TEAM_COLORS:
-        return TEAM_COLORS[needle]
-    for key, color in TEAM_COLORS.items():
-        if key in needle or needle in key:
-            return color
-    return None
+def get_driver_style(identifier, session):
+    driver = session.get_driver(identifier)
+    index = teammate_index(driver, session)
+    return {
+        "color": get_driver_color(identifier, session),
+        "linestyle": LINESTYLES[index % len(LINESTYLES)],
+        "marker": MARKERS[index % len(MARKERS)],
+    }
+
+
+def teammate_index(driver, session):
+    team = driver.get("Team", "")
+    mates = session.results[session.results["Team"] == team]
+    numbers = list(mates["DriverNumber"].astype(str))
+    number = str(driver.get("DriverNumber", ""))
+    if number in numbers:
+        return numbers.index(number)
+    return 0
+
+
+def get_driver_color(identifier, session):
+    driver = session.get_driver(identifier)
+    return match_team_color(driver.get("Team", "")) or INDY_BLUE
 
 
 def get_team_color(identifier, session=None):
@@ -64,26 +77,13 @@ def team_color_from_results(identifier, session):
     return match_team_color(hits.iloc[0].get("Team", "")) or INDY_BLUE
 
 
-def get_driver_color(identifier, session):
-    driver = session.get_driver(identifier)
-    return match_team_color(driver.get("Team", "")) or INDY_BLUE
-
-
-def teammate_index(driver, session):
-    team = driver.get("Team", "")
-    mates = session.results[session.results["Team"] == team]
-    numbers = list(mates["DriverNumber"].astype(str))
-    number = str(driver.get("DriverNumber", ""))
-    if number in numbers:
-        return numbers.index(number)
-    return 0
-
-
-def get_driver_style(identifier, session):
-    driver = session.get_driver(identifier)
-    index = teammate_index(driver, session)
-    return {
-        "color": get_driver_color(identifier, session),
-        "linestyle": LINESTYLES[index % len(LINESTYLES)],
-        "marker": MARKERS[index % len(MARKERS)],
-    }
+def match_team_color(name):
+    needle = str(name or "").strip().casefold()
+    if not needle:
+        return None
+    if needle in TEAM_COLORS:
+        return TEAM_COLORS[needle]
+    for key, color in TEAM_COLORS.items():
+        if key in needle or needle in key:
+            return color
+    return None

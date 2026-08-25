@@ -22,23 +22,12 @@ SESSION_ALIASES = {
 SESSION_FUZZY_CUTOFF = 0.6
 
 
-def parse_session_date(text):
-    raw = str(text or "").strip()
-    if not raw:
-        return ""
-    for fmt in SESSION_DATE_FORMATS:
-        try:
-            return datetime.strptime(raw, fmt).date().isoformat()
-        except ValueError:
-            continue
-    return raw
-
-
-def api_get(path, params=None):
-    response = Cache.requests_get(
-        f"{BASE_URL}{path}", params=params, headers=HEADERS, timeout=60,
+def session_details(session_id):
+    return load_json(
+        ("sessions", f"{session_id}.json"),
+        None,
+        partial(api_get, "/api/results/EventsSessionDetails", {"id": session_id}),
     )
-    return response.json()
 
 
 def load_json(parts, ttl, fetcher):
@@ -51,6 +40,13 @@ def load_json(parts, ttl, fetcher):
     return payload
 
 
+def api_get(path, params=None):
+    response = Cache.requests_get(
+        f"{BASE_URL}{path}", params=params, headers=HEADERS, timeout=60,
+    )
+    return response.json()
+
+
 def season_dropdown():
     return load_json(
         ("season_dropdown.json",),
@@ -59,20 +55,23 @@ def season_dropdown():
     )
 
 
-def year_winners(year):
-    return load_json(
-        ("winners", f"{year}.json"),
-        SCHEDULE_TTL_SECONDS,
-        partial(
-            api_get,
-            "/api/results/AllTimeWinnersByYearSeries",
-            {"year": year, "series": WINNERS_SERIES_ID},
-        ),
-    )
+def parse_session_date(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    for fmt in SESSION_DATE_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return raw
 
 
-def normalize_session_name(text):
-    return " ".join(str(text or "").strip().lower().split())
+def pick_race_session(sessions):
+    try:
+        return pick_session(sessions, "race")
+    except ValueError:
+        return None
 
 
 def pick_session(sessions, query):
@@ -102,41 +101,8 @@ def pick_session(sessions, query):
     raise ValueError(f"No session matching '{query}'. Available sessions: {available}")
 
 
-def pick_race_session(sessions):
-    try:
-        return pick_session(sessions, "race")
-    except ValueError:
-        return None
-
-
-def session_details(session_id):
-    return load_json(
-        ("sessions", f"{session_id}.json"),
-        None,
-        partial(api_get, "/api/results/EventsSessionDetails", {"id": session_id}),
-    )
-
-
-def normalize_car(value):
-    text = str(value or "").strip()
-    return str(int(text)) if text.isdigit() else text
-
-
-def teams_from_details(details):
-    teams = {}
-    for record in details.get("records") or []:
-        if record.get("IsDeleted"):
-            continue
-        car = normalize_car(record.get("CarNumber"))
-        team = str(record.get("TeamName") or "").strip()
-        if car and team:
-            teams[car] = team
-    return teams
-
-
-def iter_dropdown_events():
-    for block in season_dropdown():
-        yield from block.get("Events") or []
+def normalize_session_name(text):
+    return " ".join(str(text or "").strip().lower().split())
 
 
 def event_sessions(event_id):
@@ -156,9 +122,9 @@ def find_session(event_id, query):
     return None
 
 
-def find_session_id(event_id, query):
-    session = find_session(event_id, query)
-    return session["EventsSessionID"] if session else None
+def iter_dropdown_events():
+    for block in season_dropdown():
+        yield from block.get("Events") or []
 
 
 def race_session_id(event_id):
@@ -166,6 +132,23 @@ def race_session_id(event_id):
         return find_session_id(event_id, "race")
     except ValueError:
         return None
+
+
+def find_session_id(event_id, query):
+    session = find_session(event_id, query)
+    return session["EventsSessionID"] if session else None
+
+
+def year_winners(year):
+    return load_json(
+        ("winners", f"{year}.json"),
+        SCHEDULE_TTL_SECONDS,
+        partial(
+            api_get,
+            "/api/results/AllTimeWinnersByYearSeries",
+            {"year": year, "series": WINNERS_SERIES_ID},
+        ),
+    )
 
 
 def teams_for_event(race_id):
@@ -177,3 +160,20 @@ def teams_for_event(race_id):
     except Exception as exc:
         LOGGER.warning("team lookup failed for %s: %s", race_id, exc)
         return {}, False
+
+
+def teams_from_details(details):
+    teams = {}
+    for record in details.get("records") or []:
+        if record.get("IsDeleted"):
+            continue
+        car = normalize_car(record.get("CarNumber"))
+        team = str(record.get("TeamName") or "").strip()
+        if car and team:
+            teams[car] = team
+    return teams
+
+
+def normalize_car(value):
+    text = str(value or "").strip()
+    return str(int(text)) if text.isdigit() else text

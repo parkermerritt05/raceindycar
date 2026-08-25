@@ -16,14 +16,34 @@ LAP_FIELDS = list(LAP_COLUMNS.values())
 NUMERIC_FIELDS = ("LapNumber", "Position", "LapTime", "LapSpeed")
 
 
-def as_list(value):
-    if isinstance(value, (list, tuple, set, range)):
-        return list(value)
-    return [value]
+def build_laps(rows):
+    if not rows:
+        return Laps(columns=LAP_FIELDS)
+    frame = pd.DataFrame(rows).rename(columns=LAP_COLUMNS)
+    for field in LAP_FIELDS:
+        if field not in frame.columns:
+            frame[field] = ""
+    frame = coerce_numeric(normalize_numbers(frame))
+    return Laps(frame[LAP_FIELDS])
 
 
-def is_pit(value):
-    return str(value).strip().casefold() in PIT_FLAGS
+def normalize_numbers(frame):
+    if "DriverNumber" not in frame.columns:
+        return frame
+    frame["DriverNumber"] = frame["DriverNumber"].map(compact_car_number)
+    return frame
+
+
+def compact_car_number(value):
+    text = str(value).strip()
+    return str(int(text)) if text.isdigit() else text
+
+
+def coerce_numeric(frame):
+    for field in NUMERIC_FIELDS:
+        if field in frame.columns:
+            frame[field] = pd.to_numeric(frame[field], errors="coerce")
+    return frame
 
 
 class Laps(pd.DataFrame):
@@ -73,31 +93,11 @@ class Laps(pd.DataFrame):
         return names == text.casefold()
 
 
-def coerce_numeric(frame):
-    for field in NUMERIC_FIELDS:
-        if field in frame.columns:
-            frame[field] = pd.to_numeric(frame[field], errors="coerce")
-    return frame
+def as_list(value):
+    if isinstance(value, (list, tuple, set, range)):
+        return list(value)
+    return [value]
 
 
-def compact_car_number(value):
-    text = str(value).strip()
-    return str(int(text)) if text.isdigit() else text
-
-
-def normalize_numbers(frame):
-    if "DriverNumber" not in frame.columns:
-        return frame
-    frame["DriverNumber"] = frame["DriverNumber"].map(compact_car_number)
-    return frame
-
-
-def build_laps(rows):
-    if not rows:
-        return Laps(columns=LAP_FIELDS)
-    frame = pd.DataFrame(rows).rename(columns=LAP_COLUMNS)
-    for field in LAP_FIELDS:
-        if field not in frame.columns:
-            frame[field] = ""
-    frame = coerce_numeric(normalize_numbers(frame))
-    return Laps(frame[LAP_FIELDS])
+def is_pit(value):
+    return str(value).strip().casefold() in PIT_FLAGS

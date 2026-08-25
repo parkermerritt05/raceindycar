@@ -16,23 +16,6 @@ TABLE_SETTINGS = {
 MIN_DATA_COLS = 3
 
 
-def clean_cell(value):
-    if value is None:
-        return ""
-    text = str(value).replace("\n", " ").strip()
-    return HEADER_BLEED_RE.sub("", text).strip()
-
-
-def clean_time(value):
-    text = clean_cell(value)
-    if TIME_RE.fullmatch(text):
-        return text
-    # Column-header text sometimes bleeds into a data cell (e.g. "Stretch
-    # 5\n2.8407"); the real value is always the trailing decimal token.
-    matches = TIME_TOKEN_RE.findall(text)
-    return matches[-1] if matches else ""
-
-
 def largest_data_table(page):
     found = page.find_tables(table_settings=TABLE_SETTINGS)
     candidates = []
@@ -43,83 +26,6 @@ def largest_data_table(page):
     if not candidates:
         return None
     return max(candidates, key=lambda item: len(item[1]) * len(item[1][0]))
-
-
-def first_row_cells(table):
-    if not table or not table.cells:
-        return []
-    tops = sorted({round(cell[1], 1) for cell in table.cells})
-    first_top = tops[0]
-    return sorted(
-        [cell for cell in table.cells if abs(cell[1] - first_top) < 1],
-        key=lambda cell: cell[0],
-    )
-
-
-def normalize_label_text(text):
-    text = text.replace("T/STurn", "T/S Turn")
-    text = text.replace("EntryBackStretch", "Entry BackStretch")
-    text = re.sub(r"\bS F\b", "SF", text)
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def is_lap_label(label):
-    text = label or ""
-    if text == "Lap" or bool(LAP_LABEL_RE.fullmatch(text)):
-        return True
-    return text.startswith("Lap ")
-
-
-def is_pit_label(label):
-    return bool(PIT_LABEL_RE.match(label or ""))
-
-
-def repair_split_lap_header(labels):
-    for index in range(len(labels) - 1):
-        left = labels[index]
-        right = labels[index + 1]
-        if left.endswith(" L") and LAP_LABEL_RE.fullmatch(right):
-            labels[index] = left[:-2].rstrip()
-            labels[index + 1] = "Lap"
-    for index, label in enumerate(labels):
-        if LAP_LABEL_RE.fullmatch(label):
-            labels[index] = "Lap"
-    return labels
-
-
-def repair_ts_bleed(labels):
-    if len(labels) <= 2:
-        return labels
-    if labels[1].startswith("T/S") and labels[1] != "T/S":
-        rest = labels[1][3:].strip()
-        labels[1] = "T/S"
-        if rest:
-            labels[2] = f"{rest} {labels[2]}".strip()
-    if labels[2].startswith("to ") and not labels[2].upper().startswith("TO I"):
-        labels[2] = f"SF {labels[2]}".strip()
-    return labels
-
-
-def repair_turn_entry_split(labels):
-    for index in range(len(labels) - 1):
-        if not re.fullmatch(r"Turn \d+", labels[index]):
-            continue
-        if not labels[index + 1].startswith("Entry"):
-            continue
-        labels[index] = f"{labels[index]} Entry"
-        labels[index + 1] = re.sub(r"^Entry\s*", "", labels[index + 1]).strip()
-    return labels
-
-
-def repair_labels(labels):
-    labels = [normalize_label_text(label) for label in labels]
-    if len(labels) > 2 and not labels[1] and labels[2].startswith("T/S"):
-        labels[1] = "T/S"
-        labels[2] = labels[2][3:].strip()
-    labels = repair_ts_bleed(labels)
-    labels = repair_split_lap_header(labels)
-    labels = repair_turn_entry_split(labels)
-    return labels
 
 
 def label_columns(page, table):
@@ -144,14 +50,70 @@ def label_columns(page, table):
     return repair_labels(labels)
 
 
-def find_lap_time_index(labels):
-    for index, label in enumerate(labels[2:], start=2):
-        if is_lap_label(label):
-            return index
-    for index, label in enumerate(labels[2:], start=2):
-        if is_pit_label(label):
-            return index - 1 if index > 2 else None
-    return None
+def first_row_cells(table):
+    if not table or not table.cells:
+        return []
+    tops = sorted({round(cell[1], 1) for cell in table.cells})
+    first_top = tops[0]
+    return sorted(
+        [cell for cell in table.cells if abs(cell[1] - first_top) < 1],
+        key=lambda cell: cell[0],
+    )
+
+
+def repair_labels(labels):
+    labels = [normalize_label_text(label) for label in labels]
+    if len(labels) > 2 and not labels[1] and labels[2].startswith("T/S"):
+        labels[1] = "T/S"
+        labels[2] = labels[2][3:].strip()
+    labels = repair_ts_bleed(labels)
+    labels = repair_split_lap_header(labels)
+    labels = repair_turn_entry_split(labels)
+    return labels
+
+
+def normalize_label_text(text):
+    text = text.replace("T/STurn", "T/S Turn")
+    text = text.replace("EntryBackStretch", "Entry BackStretch")
+    text = re.sub(r"\bS F\b", "SF", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def repair_ts_bleed(labels):
+    if len(labels) <= 2:
+        return labels
+    if labels[1].startswith("T/S") and labels[1] != "T/S":
+        rest = labels[1][3:].strip()
+        labels[1] = "T/S"
+        if rest:
+            labels[2] = f"{rest} {labels[2]}".strip()
+    if labels[2].startswith("to ") and not labels[2].upper().startswith("TO I"):
+        labels[2] = f"SF {labels[2]}".strip()
+    return labels
+
+
+def repair_split_lap_header(labels):
+    for index in range(len(labels) - 1):
+        left = labels[index]
+        right = labels[index + 1]
+        if left.endswith(" L") and LAP_LABEL_RE.fullmatch(right):
+            labels[index] = left[:-2].rstrip()
+            labels[index + 1] = "Lap"
+    for index, label in enumerate(labels):
+        if LAP_LABEL_RE.fullmatch(label):
+            labels[index] = "Lap"
+    return labels
+
+
+def repair_turn_entry_split(labels):
+    for index in range(len(labels) - 1):
+        if not re.fullmatch(r"Turn \d+", labels[index]):
+            continue
+        if not labels[index + 1].startswith("Entry"):
+            continue
+        labels[index] = f"{labels[index]} Entry"
+        labels[index + 1] = re.sub(r"^Entry\s*", "", labels[index + 1]).strip()
+    return labels
 
 
 def column_roles(labels):
@@ -171,3 +133,41 @@ def column_roles(labels):
         "pit_labels": labels[lap_time_idx + 1 :],
         "pit_idxs": list(range(lap_time_idx + 1, len(labels))),
     }
+
+
+def find_lap_time_index(labels):
+    for index, label in enumerate(labels[2:], start=2):
+        if is_lap_label(label):
+            return index
+    for index, label in enumerate(labels[2:], start=2):
+        if is_pit_label(label):
+            return index - 1 if index > 2 else None
+    return None
+
+
+def is_lap_label(label):
+    text = label or ""
+    if text == "Lap" or bool(LAP_LABEL_RE.fullmatch(text)):
+        return True
+    return text.startswith("Lap ")
+
+
+def is_pit_label(label):
+    return bool(PIT_LABEL_RE.match(label or ""))
+
+
+def clean_cell(value):
+    if value is None:
+        return ""
+    text = str(value).replace("\n", " ").strip()
+    return HEADER_BLEED_RE.sub("", text).strip()
+
+
+def clean_time(value):
+    text = clean_cell(value)
+    if TIME_RE.fullmatch(text):
+        return text
+    # Column-header text sometimes bleeds into a data cell (e.g. "Stretch
+    # 5\n2.8407"); the real value is always the trailing decimal token.
+    matches = TIME_TOKEN_RE.findall(text)
+    return matches[-1] if matches else ""

@@ -10,28 +10,20 @@ RACE_COLUMNS = {
 }
 
 
+def build_results(records, event, laps=None):
+    teams = team_by_car(laps)
+    active = [record for record in records if not record.get("IsDeleted")]
+    rows = [driver_result_row(record, event, teams) for record in active]
+    if not rows:
+        return SessionResults(columns=result_columns())
+    frame = SessionResults(rows)
+    return frame.sort_values("Position", na_position="last").reset_index(drop=True)
+
+
 class SessionResults(pd.DataFrame):
     @property
     def _constructor(self):
         return SessionResults
-
-
-def to_number(value):
-    if value is None or value == "":
-        return pd.NA
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return pd.NA
-
-
-def to_float(value):
-    if value is None or value == "":
-        return pd.NA
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return pd.NA
 
 
 def team_by_car(laps):
@@ -39,14 +31,6 @@ def team_by_car(laps):
         return {}
     unique = laps.drop_duplicates("DriverNumber")
     return dict(zip(unique["DriverNumber"].astype(str), unique["Team"]))
-
-
-def copy_race_fields(event):
-    return {dest: getattr(event, source, "") for source, dest in RACE_COLUMNS.items()}
-
-
-def abbreviation_for(last_name):
-    return str(last_name or "")[:ABBREV_LEN].upper()
 
 
 def driver_result_row(record, event, teams):
@@ -78,6 +62,32 @@ def driver_result_row(record, event, teams):
     return row
 
 
+def abbreviation_for(last_name):
+    return str(last_name or "")[:ABBREV_LEN].upper()
+
+
+def to_number(value):
+    if value is None or value == "":
+        return pd.NA
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return pd.NA
+
+
+def to_float(value):
+    if value is None or value == "":
+        return pd.NA
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return pd.NA
+
+
+def copy_race_fields(event):
+    return {dest: getattr(event, source, "") for source, dest in RACE_COLUMNS.items()}
+
+
 def result_columns():
     return [
         "DriverId", "FirstName", "LastName", "FullName", "Abbreviation",
@@ -86,13 +96,3 @@ def result_columns():
         "AvgLapSpeed",
         *RACE_COLUMNS.values(),
     ]
-
-
-def build_results(records, event, laps=None):
-    teams = team_by_car(laps)
-    active = [record for record in records if not record.get("IsDeleted")]
-    rows = [driver_result_row(record, event, teams) for record in active]
-    if not rows:
-        return SessionResults(columns=result_columns())
-    frame = SessionResults(rows)
-    return frame.sort_values("Position", na_position="last").reset_index(drop=True)

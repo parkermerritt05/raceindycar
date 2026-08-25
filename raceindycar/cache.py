@@ -1,4 +1,3 @@
-import os
 import pickle
 import shutil
 import time
@@ -11,8 +10,6 @@ import requests_cache
 from raceindycar.exceptions import RateLimitExceededError
 from raceindycar.logging import LOGGER
 
-DEFAULT_CACHE_DIR = Path(".cache/fastindycar")
-CACHE_DIR_ENV_VAR = "FASTINDYCAR_CACHE"
 SCHEDULE_TTL_SECONDS = 12 * 60 * 60
 CHALLENGE_MARK = "just a moment"
 
@@ -28,7 +25,7 @@ SOFT_RATE_LIMIT_DELAY_SECONDS = 1.0
 
 
 class Cache:
-    directory = DEFAULT_CACHE_DIR
+    directory = None
     enabled = True
     offline = False
     force_renew = False
@@ -42,10 +39,16 @@ class Cache:
     _request_times = []
 
     @classmethod
-    def enable_cache(cls, cache_dir=None, ignore_version=False, force_renew=False,
+    def enable_cache(cls, cache_dir, ignore_version=False, force_renew=False,
                       use_requests_cache=True):
-        cls.directory = Path(cache_dir) if cache_dir else default_cache_dir()
-        cls.directory.mkdir(parents=True, exist_ok=True)
+        path = Path(cache_dir)
+        if path.exists() and not path.is_dir():
+            raise NotADirectoryError(f"cache_dir {path} is not a directory")
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ValueError(f"cache_dir {path} is not usable: {exc}") from exc
+        cls.directory = path
         cls.enabled = True
         cls.force_renew = force_renew
         cls.ignore_version = ignore_version
@@ -54,112 +57,12 @@ class Cache:
         cls._http_session_key = None
 
     @classmethod
-    def path(cls, *parts):
-        return cls.directory.joinpath(*parts)
-
-    @classmethod
-    def should_read(cls, path, ttl=None):
-        if not cls.enabled or cls.force_renew:
-            return False
-        if not path.exists() or path.stat().st_size == 0:
-            return False
-        if ttl is None or cls.ci:
-            return True
-        return time.time() - path.stat().st_mtime <= ttl
-
-    @classmethod
-    def should_write(cls):
-        return cls.enabled and not cls.offline
-
-    @classmethod
-    def write_text(cls, path, text):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-
-    @classmethod
-    def write_bytes(cls, path, data):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-
-    @classmethod
-    def load_pickle(cls, *parts):
-        if cls.ci:
-            return None
-        path = cls.path(*parts)
-        if not cls.should_read(path):
-            return None
-        with path.open("rb") as handle:
-            envelope = pickle.load(handle)
-        if not isinstance(envelope, dict) or "version" not in envelope:
-            return None
-        if envelope["version"] != PICKLE_FORMAT_VERSION and not cls.ignore_version:
-            LOGGER.warning("cached data at %s was written by an older/newer "
-                            "format version; ignoring", path)
-            return None
-        return envelope["payload"]
-
-    @classmethod
-    def save_pickle(cls, payload, *parts):
-        if cls.ci or not cls.should_write():
-            return
-        path = cls.path(*parts)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        envelope = {"version": PICKLE_FORMAT_VERSION, "payload": payload}
-        with path.open("wb") as handle:
-            pickle.dump(envelope, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    @classmethod
     def requests_get(cls, url, **kwargs):
         return cls._request("get", url, **kwargs)
 
     @classmethod
     def requests_post(cls, url, **kwargs):
         return cls._request("post", url, **kwargs)
-
-    @classmethod
-    def delete_response(cls, url):
-        if not (cls.enabled and cls.use_requests_cache):
-            return
-        cls._cached_session().cache.delete(urls=[url])
-
-    @classmethod
-    def get_cache_info(cls):
-        if not cls.directory.exists():
-            return None, None
-        return str(cls.directory), cache_size(cls.directory)
-
-    @classmethod
-    def clear_cache(cls, cache_dir=None, deep=False):
-        root = Path(cache_dir) if cache_dir else cls.directory
-        clear_cache_dir(root, keep_http_cache=not deep)
-
-    @classmethod
-    def offline_mode(cls, enabled=True):
-        cls.offline = bool(enabled)
-
-    @classmethod
-    def ci_mode(cls, enabled=True):
-        cls.ci = bool(enabled)
-        cls._http_session = None
-        cls._http_session_key = None
-
-    @classmethod
-    def set_disabled(cls):
-        cls.enabled = False
-
-    @classmethod
-    def set_enabled(cls):
-        cls.enabled = True
-
-    @classmethod
-    @contextmanager
-    def disabled(cls):
-        previous = cls.enabled
-        cls.enabled = False
-        try:
-            yield
-        finally:
-            cls.enabled = previous
 
     @classmethod
     def _request(cls, method, url, **kwargs):
@@ -220,6 +123,11 @@ class Cache:
 
     @classmethod
     def _cached_session(cls):
+        if cls.directory is None:
+            raise RuntimeError(
+                "No cache directory configured - call "
+                "raceindycar.enable_cache(cache_dir=...) first."
+            )
         key = (str(cls.directory), cls.ci)
         if cls._http_session is None or cls._http_session_key != key:
             cls.directory.mkdir(parents=True, exist_ok=True)
@@ -237,22 +145,116 @@ class Cache:
             cls._http_session_key = key
         return cls._http_session
 
+    @classmethod
+    def load_pickle(cls, *parts):
+        if cls.ci:
+            return None
+        path = cls.path(*parts)
+        if not cls.should_read(path):
+            return None
+        with path.open("rb") as handle:
+            envelope = pickle.load(handle)
+        if not isinstance(envelope, dict) or "version" not in envelope:
+            return None
+        if envelope["version"] != PICKLE_FORMAT_VERSION and not cls.ignore_version:
+            LOGGER.warning("cached data at %s was written by an older/newer "
+                            "format version; ignoring", path)
+            return None
+        return envelope["payload"]
 
-def default_cache_dir():
-    env_dir = os.environ.get(CACHE_DIR_ENV_VAR)
-    if env_dir:
-        return Path(env_dir)
-    return DEFAULT_CACHE_DIR
+    @classmethod
+    def save_pickle(cls, payload, *parts):
+        if cls.ci or not cls.should_write():
+            return
+        path = cls.path(*parts)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        envelope = {"version": PICKLE_FORMAT_VERSION, "payload": payload}
+        with path.open("wb") as handle:
+            pickle.dump(envelope, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @classmethod
+    def path(cls, *parts):
+        if cls.directory is None:
+            raise RuntimeError(
+                "No cache directory configured - call "
+                "raceindycar.enable_cache(cache_dir=...) first."
+            )
+        return cls.directory.joinpath(*parts)
+
+    @classmethod
+    def should_read(cls, path, ttl=None):
+        if not cls.enabled or cls.force_renew:
+            return False
+        if not path.exists() or path.stat().st_size == 0:
+            return False
+        if ttl is None or cls.ci:
+            return True
+        return time.time() - path.stat().st_mtime <= ttl
+
+    @classmethod
+    def should_write(cls):
+        return cls.enabled and not cls.offline
+
+    @classmethod
+    def write_text(cls, path, text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    @classmethod
+    def write_bytes(cls, path, data):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    @classmethod
+    def delete_response(cls, url):
+        if not (cls.enabled and cls.use_requests_cache):
+            return
+        cls._cached_session().cache.delete(urls=[url])
+
+    @classmethod
+    def get_cache_info(cls):
+        if not cls.directory.exists():
+            return None, None
+        return str(cls.directory), cache_size(cls.directory)
+
+    @classmethod
+    def clear_cache(cls, cache_dir=None, deep=False):
+        root = Path(cache_dir) if cache_dir else cls.directory
+        clear_cache_dir(root, keep_http_cache=not deep)
+
+    @classmethod
+    def offline_mode(cls, enabled=True):
+        cls.offline = bool(enabled)
+
+    @classmethod
+    def ci_mode(cls, enabled=True):
+        cls.ci = bool(enabled)
+        cls._http_session = None
+        cls._http_session_key = None
+
+    @classmethod
+    def set_disabled(cls):
+        cls.enabled = False
+
+    @classmethod
+    def set_enabled(cls):
+        cls.enabled = True
+
+    @classmethod
+    @contextmanager
+    def disabled(cls):
+        previous = cls.enabled
+        cls.enabled = False
+        try:
+            yield
+        finally:
+            cls.enabled = previous
 
 
-def enable_cache(cache_dir=None, ignore_version=False, force_renew=False,
+def enable_cache(cache_dir, ignore_version=False, force_renew=False,
                   use_requests_cache=True):
     Cache.enable_cache(cache_dir, ignore_version=ignore_version, force_renew=force_renew,
                         use_requests_cache=use_requests_cache)
-
-
-def is_challenge_page(text):
-    return CHALLENGE_MARK in (text or "")[:2000].casefold()
 
 
 def cache_size(root):
@@ -275,3 +277,7 @@ def clear_cache_dir(root, keep_http_cache=True):
             path.rmdir()
         except OSError:
             pass
+
+
+def is_challenge_page(text):
+    return CHALLENGE_MARK in (text or "")[:2000].casefold()

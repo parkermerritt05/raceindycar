@@ -36,6 +36,25 @@ def setup_mpl():
     })
 
 
+def plot_position(session, drivers=None, ax=None):
+    fig, ax = ensure_axes(ax)
+    laps = session.laps if drivers is None else session.laps.pick_drivers(drivers)
+    shade_cautions(ax, session)
+    for number, group in laps.groupby("DriverNumber"):
+        ordered = group.sort_values("LapNumber")
+        style = get_driver_style(number, session)
+        ax.plot(
+            ordered["LapNumber"], ordered["Position"],
+            label=driver_label(ordered), color=style["color"],
+            linestyle=style["linestyle"], linewidth=1.6,
+        )
+    ax.invert_yaxis()
+    ax.set_xlabel("Lap")
+    ax.set_ylabel("Position")
+    ax.legend(frameon=False, fontsize=8)
+    return fig, ax
+
+
 def ensure_axes(ax, figsize=(8, 5)):
     if ax is not None:
         return ax.figure, ax
@@ -57,25 +76,6 @@ def driver_label(laps):
     return laps["Driver"].iloc[0]
 
 
-def plot_position(session, drivers=None, ax=None):
-    fig, ax = ensure_axes(ax)
-    laps = session.laps if drivers is None else session.laps.pick_drivers(drivers)
-    shade_cautions(ax, session)
-    for number, group in laps.groupby("DriverNumber"):
-        ordered = group.sort_values("LapNumber")
-        style = get_driver_style(number, session)
-        ax.plot(
-            ordered["LapNumber"], ordered["Position"],
-            label=driver_label(ordered), color=style["color"],
-            linestyle=style["linestyle"], linewidth=1.6,
-        )
-    ax.invert_yaxis()
-    ax.set_xlabel("Lap")
-    ax.set_ylabel("Position")
-    ax.legend(frameon=False, fontsize=8)
-    return fig, ax
-
-
 def plot_lap_times(session, drivers, ax=None):
     fig, ax = ensure_axes(ax)
     for driver in as_list(drivers):
@@ -93,16 +93,6 @@ def plot_lap_times(session, drivers, ax=None):
     return fig, ax
 
 
-def bar_sort_ascending(metric):
-    return metric.casefold() in {"position", "gridposition"}
-
-
-def format_bar_value(value):
-    if float(value).is_integer():
-        return str(int(value))
-    return f"{value:.2f}"
-
-
 def plot_bar(session, metric="Position", ax=None):
     fig, ax = ensure_axes(ax, figsize=(8, 7))
     frame = session.results.copy()
@@ -118,6 +108,16 @@ def plot_bar(session, metric="Position", ax=None):
         ax.text(value, index, f" {format_bar_value(value)}", va="center", fontsize=8)
     ax.set_xlabel(metric)
     return fig, ax
+
+
+def bar_sort_ascending(metric):
+    return metric.casefold() in {"position", "gridposition"}
+
+
+def format_bar_value(value):
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{value:.2f}"
 
 
 __all__ = [

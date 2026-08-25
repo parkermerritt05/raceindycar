@@ -12,7 +12,7 @@ pip install -e .
 ```
 
 Requires Python 3.10+. Dependencies (`pandas`, `requests`, `requests-cache`,
-`beautifulsoup4`, `pdfplumber`, `matplotlib`) are installed automatically.
+`pdfplumber`, `matplotlib`) are installed automatically.
 
 ## Quick start
 
@@ -20,7 +20,7 @@ Requires Python 3.10+. Dependencies (`pandas`, `requests`, `requests-cache`,
 import raceindycar
 
 # Optional: cache scraped/parsed data to disk between runs
-raceindycar.enable_cache()
+raceindycar.enable_cache(cache_dir=".cache/fastindycar")
 
 # Look up the schedule for a season
 schedule = raceindycar.get_event_schedule(2024)
@@ -81,8 +81,8 @@ rows, failed = historical_rows(min_year=1996)
 This mirrors [FastF1's `Cache`](https://docs.fastf1.dev/api_reference/cache_and_rate_limits.html)
 API. Caching happens in two stages: raw HTTP responses are cached in a local
 sqlite database (via `requests-cache`), and fully-parsed session payloads are
-cached as pickles. Both are stored under `.cache/fastindycar` by default (or
-the `FASTINDYCAR_CACHE` environment variable, or an explicit `cache_dir`):
+cached as pickles. Both are stored under the `cache_dir` you provide - there is
+no default location, so `cache_dir` is required:
 
 ```python
 raceindycar.enable_cache(cache_dir=".cache/fastindycar", force_renew=False)
