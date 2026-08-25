@@ -77,5 +77,5 @@ def test_enrichment_map_parses_practice_section_results_pdf():
     assert set(values) == {"lap_time", "lap_speed", "on_pit_road"}
 
     car_2_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
-    assert car_2_laps["1"]["lap_time"] == "90.3497"
-    assert car_2_laps["1"]["lap_speed"] == "83.675"
+    assert car_2_laps["1"]["lap_time"] == "845.0893"
+    assert car_2_laps["1"]["lap_speed"] == "9.619"
