@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fastindycar"
-version = "0.1.1"
-description = "FastF1-style IndyCar data access"
+name = "raceindycar"
+version = "0.1"
+description = "IndyCar data access, similar to FastF1"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -22,4 +22,7 @@ license-files = ["LICEN[CS]E*"]
 
 
 [tool.setuptools]
-packages = ["raceindycar"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

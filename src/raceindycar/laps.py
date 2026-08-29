@@ -10,7 +10,6 @@ LAP_COLUMNS = {
     "lap_speed": "LapSpeed",
     "lap_time": "LapTime",
     "on_pit_road": "OnPitRoad",
-    "caution": "Caution",
     "team": "Team",
 }
 LAP_FIELDS = list(LAP_COLUMNS.values())
@@ -101,8 +100,4 @@ def as_list(value):
 
 
 def is_pit(value):
-    return str(value).strip().casefold() in TRUTHY_FLAGS
-
-
-def is_caution(value):
     return str(value).strip().casefold() in TRUTHY_FLAGS

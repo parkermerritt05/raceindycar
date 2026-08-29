@@ -8,7 +8,6 @@ from raceindycar.pdf_table import (
     column_roles,
     label_columns,
     largest_data_table,
-    row_fill_flags,
 )
 
 CAR_RE = re.compile(r"Section Data for Car (\d+)\s*-\s*(.+)")
@@ -22,7 +21,6 @@ def enrichment_map(pdf_path):
             "lap_time": row["lap_time"],
             "lap_speed": row["lap_speed"],
             "on_pit_road": row["on_pit_road"],
-            "caution": row["caution"],
         }
         for row in scrape_pdf(pdf_path)
     }
@@ -64,25 +62,23 @@ def scrape_page(page, car_number, driver):
     if not labels or len(labels) != len(rows[0]):
         return []
     roles = column_roles(labels)
-    row_colors = row_fill_flags(page, table)
     partials = []
     current_lap = ""
-    for row, color in zip(rows, row_colors):
+    for row in rows:
         partial, current_lap = row_to_partial(
-            row, car_number, driver, roles, current_lap, color,
+            row, car_number, driver, roles, current_lap,
         )
         if partial:
             partials.append(partial)
     return partials
 
 
-def row_to_partial(row, car_number, driver, roles, current_lap, color):
+def row_to_partial(row, car_number, driver, roles, current_lap):
     metric = metric_type(row)
     lap = clean_cell(row[0]) or current_lap
     if not lap or not metric:
         return None, current_lap
     record = blank_record(car_number, driver, lap)
-    record["caution"] = "1" if color == "yellow" else "0"
     if metric == "T":
         fill_sections_and_pits(record, row, roles)
         record["lap_time"] = lap_column_value(row, roles)
@@ -106,18 +102,21 @@ def blank_record(car_number, driver, lap):
         "lap_time": "",
         "lap_speed": "",
         "on_pit_road": "0",
-        "caution": "0",
         "sections": {},
+        "sections_complete": True,
         "pits": {},
     }
 
 
 def fill_sections_and_pits(record, row, roles):
     for index, label in zip(roles["section_idxs"], roles["section_labels"]):
-        if label and index < len(row):
-            value = clean_time(row[index])
-            if value:
-                record["sections"][label] = value
+        if not label:
+            continue
+        value = clean_time(row[index]) if index < len(row) else ""
+        if value:
+            record["sections"][label] = value
+        else:
+            record["sections_complete"] = False
     for index, label in zip(roles["pit_idxs"], roles["pit_labels"]):
         if label and index < len(row):
             value = clean_time(row[index])
@@ -137,9 +136,8 @@ def merge_records(base, incoming):
         base["lap_time"] = incoming["lap_time"]
     if not base["lap_speed"] and incoming["lap_speed"]:
         base["lap_speed"] = incoming["lap_speed"]
-    if incoming["caution"] == "1":
-        base["caution"] = "1"
     base["sections"].update(incoming["sections"])
+    base["sections_complete"] = base["sections_complete"] and incoming["sections_complete"]
     base["pits"].update(incoming["pits"])
     return base
 
@@ -166,6 +164,8 @@ def resolve_lap_time(record):
 
 
 def section_sum(record):
+    if not record["sections_complete"]:
+        return None
     values = record["sections"].values()
     if not values:
         return None

@@ -85,7 +85,7 @@ def to_float(value):
 
 
 def copy_race_fields(event):
-    return {dest: getattr(event, source, "") for source, dest in RACE_COLUMNS.items()}
+    return {dest: str(getattr(event, source, "")) for source, dest in RACE_COLUMNS.items()}
 
 
 def result_columns():

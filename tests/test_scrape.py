@@ -41,7 +41,7 @@ def test_build_lap_rows_merges_positions_and_metrics():
     metrics = {
         ("5", "1"): {
             "lap_time": "91.234", "lap_speed": "180.5",
-            "on_pit_road": "0", "caution": "1",
+            "on_pit_road": "0",
         },
     }
     names, teams = scrape_mod.driver_lookup(RECORDS)
@@ -50,11 +50,9 @@ def test_build_lap_rows_merges_positions_and_metrics():
     assert by_car["5"]["position"] == 1
     assert by_car["5"]["lap_time"] == "91.234"
     assert by_car["5"]["team"] == "Arrow McLaren"
-    assert by_car["5"]["caution"] == "1"
     # car 12 has no PDF metrics entry - fields fall back to empty/default
     assert by_car["12"]["lap_time"] == ""
     assert by_car["12"]["on_pit_road"] == "0"
-    assert by_car["12"]["caution"] == "0"
 
 
 def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
@@ -64,11 +62,11 @@ def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
     metrics = {
         ("5", "1"): {
             "lap_time": "91.234", "lap_speed": "180.5",
-            "on_pit_road": "0", "caution": "0",
+            "on_pit_road": "0",
         },
         ("5", "2"): {
             "lap_time": "90.111", "lap_speed": "182.0",
-            "on_pit_road": "0", "caution": "1",
+            "on_pit_road": "0",
         },
     }
     names, teams = scrape_mod.driver_lookup(RECORDS)
@@ -77,9 +75,7 @@ def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
     by_lap = {row["lap_number"]: row for row in rows}
     assert by_lap["1"]["lap_time"] == "91.234"
     assert by_lap["1"]["position"] is None
-    assert by_lap["1"]["caution"] == "0"
     assert by_lap["2"]["lap_time"] == "90.111"
-    assert by_lap["2"]["caution"] == "1"
 
 
 def _patch_load_race_deps(monkeypatch, positions_ok, metrics_ok):

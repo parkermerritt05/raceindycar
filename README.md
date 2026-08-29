@@ -8,7 +8,7 @@ and scoring data.
 ## Installation
 
 ```bash
-pip install -e .
+pip install raceindycar.
 ```
 
 Requires Python 3.10+. Dependencies (`pandas`, `requests`, `requests-cache`,
@@ -41,8 +41,7 @@ driver = session.get_driver("Josef Newgarden")  # or car number / abbreviation
 
 ## Working with laps and results
 
-`Laps` and `SessionResults` are pandas `DataFrame` subclasses, so all normal
-pandas operations work. `Laps` adds a few convenience filters:
+`Laps` and `SessionResults` are pandas `DataFrame` subclasses. `Laps` adds a few convenience filters:
 
 ```python
 session.laps.pick_drivers(["12", "2"])   # by car number or driver name
@@ -56,23 +55,15 @@ session.laps.pick_laps(range(1, 21))
 ## Plotting
 
 ```python
+import matplotlib.pyplot as plt
+
 from raceindycar import plotting
 
 plotting.setup_mpl()
 fig, ax = plotting.plot_position(session, drivers=["12", "2"])
 fig, ax = plotting.plot_lap_times(session, drivers=["12", "2"])
 fig, ax = plotting.plot_bar(session, metric="Position")
-```
-
-## Historical data
-
-`raceindycar.history` builds a season-by-season results table by scraping
-IndyCar's historical race archive:
-
-```python
-from raceindycar.history import historical_rows
-
-rows, failed = historical_rows(min_year=1996)
+plt.show()  # each plot_* call only builds the figure - this displays them
 ```
 
 ## Caching

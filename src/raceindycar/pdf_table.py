@@ -14,10 +14,6 @@ TABLE_SETTINGS = {
     "horizontal_strategy": "lines",
 }
 MIN_DATA_COLS = 3
-FLAG_COLUMN_INDEX = 2
-GREEN_FILL = (0.565, 0.933, 0.565)
-YELLOW_FILL = (1.0, 1.0, 0.0)
-FILL_TOLERANCE = 0.05
 
 
 def largest_data_table(page):
@@ -30,75 +26,6 @@ def largest_data_table(page):
     if not candidates:
         return None
     return max(candidates, key=lambda item: len(item[1]) * len(item[1][0]))
-
-
-def row_fill_flags(page, table):
-    """Classify each row of `table` as 'yellow' (caution), 'green', or ''.
-
-    IndyCar's Section Data report shades each timing-loop cell in a lap row
-    to show whether that loop was crossed under caution (yellow) or
-    green-flag racing (green) - a caution can fly mid-lap, so different
-    cells in the same row can disagree; any yellow cell makes the row
-    'yellow'. That shading is a filled rectangle on the page, not exposed by
-    `table.extract()`'s text, so it has to be read from `page.rects`.
-    """
-    bounds = row_bounds(table)
-    mid_xs = column_mid_xs(table)
-    if not bounds or not mid_xs:
-        return ["" for _ in bounds]
-    fills = [
-        (rect["top"], rect["bottom"], rect["x0"], rect["x1"], rect.get("non_stroking_color"))
-        for rect in page.rects
-        if rect.get("fill")
-    ]
-    flags = []
-    for top, bottom in bounds:
-        colors = {classify_fill(fill_color_at(fills, mid_x, top, bottom)) for mid_x in mid_xs}
-        if "yellow" in colors:
-            flags.append("yellow")
-        elif "green" in colors:
-            flags.append("green")
-        else:
-            flags.append("")
-    return flags
-
-
-def row_bounds(table):
-    tops = sorted({round(top, 1) for _x0, top, _x1, _bottom in table.cells})
-    if not tops:
-        return []
-    row_height = tops[1] - tops[0] if len(tops) > 1 else 0
-    return [
-        (top, tops[i + 1] if i + 1 < len(tops) else top + row_height)
-        for i, top in enumerate(tops)
-    ]
-
-
-def column_mid_xs(table):
-    cells = first_row_cells(table)[FLAG_COLUMN_INDEX:]
-    return [(x0 + x1) / 2 for x0, _top, x1, _bottom in cells]
-
-
-def fill_color_at(fills, mid_x, top, bottom):
-    mid_y = (top + bottom) / 2
-    for rtop, rbottom, rx0, rx1, color in fills:
-        if rtop - 0.5 <= mid_y <= rbottom + 0.5 and rx0 - 0.5 <= mid_x <= rx1 + 0.5:
-            return color
-    return None
-
-
-def classify_fill(color):
-    if not color or len(color) != 3:
-        return ""
-    if colors_close(color, YELLOW_FILL):
-        return "yellow"
-    if colors_close(color, GREEN_FILL):
-        return "green"
-    return ""
-
-
-def colors_close(color, target):
-    return all(abs(c - t) <= FILL_TOLERANCE for c, t in zip(color, target))
 
 
 def label_columns(page, table):

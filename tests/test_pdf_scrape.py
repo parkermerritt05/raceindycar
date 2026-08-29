@@ -3,14 +3,13 @@ from pathlib import Path
 from raceindycar.pdf_scrape import enrichment_map, finalize_record
 
 EXAMPLE_PRACTICE_PDF = Path(__file__).resolve().parent / "example_practice_results.pdf"
-EXAMPLE_RACE_PDF = Path(__file__).resolve().parent / "example_race.pdf"
 
 
 def blank_record(**overrides):
     record = {
         "car_number": "12", "driver": "Power, Will", "lap": "1",
-        "lap_time": "", "lap_speed": "", "on_pit_road": "0", "caution": "0",
-        "sections": {}, "pits": {},
+        "lap_time": "", "lap_speed": "", "on_pit_road": "0",
+        "sections": {}, "sections_complete": True, "pits": {},
     }
     record.update(overrides)
     return record
@@ -50,6 +49,24 @@ def test_finalize_record_corrects_lap_time_from_section_sum_when_way_off():
     assert finalize_record(record)["lap_time"] == "38.4913"
 
 
+def test_finalize_record_keeps_reported_lap_time_when_sections_incomplete():
+    # Some track layouts leave several section-split cells blank in the PDF
+    # (loops that don't apply to that configuration), so the splits sum to
+    # far less than the real lap - that partial sum must not overwrite a
+    # perfectly good reported "Lap" total.
+    record = blank_record(
+        lap="132",
+        lap_time="41.5007",
+        sections={
+            "Stretch Front 5": "2.9893", "Turn 1 Entry": "5.3684",
+            "Back Stretch 2": "5.2933", "Turn 3 Entry": "3.3099",
+            "Turn 4 Entry": "3.8076",
+        },
+        sections_complete=False,
+    )
+    assert finalize_record(record)["lap_time"] == "41.5007"
+
+
 def test_finalize_record_keeps_lap_time_when_pit_segments_present():
     # A genuinely pit-affected lap legitimately runs longer than its
     # on-track section splits sum to - must not be "corrected" down.
@@ -75,21 +92,8 @@ def test_enrichment_map_parses_practice_section_results_pdf():
     (car, lap), values = next(iter(records.items()))
     assert car.isdigit()
     assert lap.isdigit()
-    assert set(values) == {"lap_time", "lap_speed", "on_pit_road", "caution"}
+    assert set(values) == {"lap_time", "lap_speed", "on_pit_road"}
 
     car_2_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
     assert car_2_laps["1"]["lap_time"] == "845.0893"
     assert car_2_laps["1"]["lap_speed"] == "9.619"
-
-
-def test_enrichment_map_flags_caution_laps_from_yellow_section_pdf():
-    # tests/example_race.pdf's first car: a caution flies partway through
-    # lap 1 (its Back Stretch/Turn 3/Turn 4/Front cells are shaded yellow,
-    # confirmed against the rendered page), stays yellow through lap 9
-    # (also shaded partway, confirmed by the much slower pace-lap speeds),
-    # then it's back to green at lap 10.
-    records = enrichment_map(EXAMPLE_RACE_PDF)
-    car_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
-    for lap in map(str, range(1, 10)):
-        assert car_laps[lap]["caution"] == "1"
-    assert car_laps["10"]["caution"] == "0"

@@ -32,7 +32,7 @@ def load_race(race_id, session_id=None):
         "drivers": records,
         "laps": build_lap_rows(positions, metrics, names, teams),
     }
-    if positions_ok and metrics_ok:
+    if positions_ok and metrics_ok and Cache.should_write():
         Cache.save_payload(payload, str(race_id), str(session_id), SESSION_PICKLE)
         discard_report_pdfs(race_id, session_id)
     return payload
@@ -82,7 +82,6 @@ def build_lap_rows(positions, metrics, names, teams):
             "lap_speed": extra.get("lap_speed", ""),
             "lap_time": extra.get("lap_time", ""),
             "on_pit_road": extra.get("on_pit_road", "0"),
-            "caution": extra.get("caution", "0"),
             "team": teams.get(car, ""),
         })
     return rows

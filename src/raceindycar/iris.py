@@ -8,7 +8,6 @@ from raceindycar.logging import LOGGER
 
 BASE_URL = "https://www.indycar.com"
 SERIES_GUID = "b856a4f1-e85c-4fac-8c36-fd58d962227a"
-WINNERS_SERIES_ID = 55
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "Accept": "application/json, text/javascript, */*; q=0.01",
@@ -137,18 +136,6 @@ def race_session_id(event_id):
 def find_session_id(event_id, query):
     session = find_session(event_id, query)
     return session["EventsSessionID"] if session else None
-
-
-def year_winners(year):
-    return load_json(
-        ("winners", f"{year}.json"),
-        SCHEDULE_TTL_SECONDS,
-        partial(
-            api_get,
-            "/api/results/AllTimeWinnersByYearSeries",
-            {"year": year, "series": WINNERS_SERIES_ID},
-        ),
-    )
 
 
 def teams_for_event(race_id):
