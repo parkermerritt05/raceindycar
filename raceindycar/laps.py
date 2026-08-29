@@ -1,7 +1,7 @@
 import pandas as pd
 
 QUICKLAP_THRESHOLD = 1.07
-PIT_FLAGS = {"1", "true", "yes"}
+TRUTHY_FLAGS = {"1", "true", "yes"}
 LAP_COLUMNS = {
     "driver_name": "Driver",
     "car_number": "DriverNumber",
@@ -10,6 +10,7 @@ LAP_COLUMNS = {
     "lap_speed": "LapSpeed",
     "lap_time": "LapTime",
     "on_pit_road": "OnPitRoad",
+    "caution": "Caution",
     "team": "Team",
 }
 LAP_FIELDS = list(LAP_COLUMNS.values())
@@ -100,4 +101,8 @@ def as_list(value):
 
 
 def is_pit(value):
-    return str(value).strip().casefold() in PIT_FLAGS
+    return str(value).strip().casefold() in TRUTHY_FLAGS
+
+
+def is_caution(value):
+    return str(value).strip().casefold() in TRUTHY_FLAGS

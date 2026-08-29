@@ -8,7 +8,6 @@ GRID_ALPHA = 0.08
 SPINE_COLOR = "#bbbbbb"
 LABEL_COLOR = "#333333"
 TICK_COLOR = "#444444"
-CAUTION_ALPHA = 0.06
 WHITE = "#ffffff"
 FONT_FAMILY = "sans-serif"
 FONT_NAME = "DejaVu Sans"
@@ -39,7 +38,6 @@ def setup_mpl():
 def plot_position(session, drivers=None, ax=None):
     fig, ax = ensure_axes(ax)
     laps = session.laps if drivers is None else session.laps.pick_drivers(drivers)
-    shade_cautions(ax, session)
     for number, group in laps.groupby("DriverNumber"):
         ordered = group.sort_values("LapNumber")
         style = get_driver_style(number, session)
@@ -61,13 +59,6 @@ def ensure_axes(ax, figsize=(8, 5)):
     fig, ax = plt.subplots(figsize=figsize, facecolor=WHITE)
     ax.set_facecolor(WHITE)
     return fig, ax
-
-
-def shade_cautions(ax, session):
-    if session.cautions is None or session.cautions.empty:
-        return
-    for row in session.cautions.itertuples(index=False):
-        ax.axvspan(row.Start, row.End, color="#000000", alpha=CAUTION_ALPHA, lw=0)
 
 
 def driver_label(laps):

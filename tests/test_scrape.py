@@ -38,16 +38,23 @@ def test_driver_lookup_maps_car_number_to_name_and_team():
 
 def test_build_lap_rows_merges_positions_and_metrics():
     positions = {("5", "1"): 1, ("12", "1"): 2}
-    metrics = {("5", "1"): {"lap_time": "91.234", "lap_speed": "180.5", "on_pit_road": "0"}}
+    metrics = {
+        ("5", "1"): {
+            "lap_time": "91.234", "lap_speed": "180.5",
+            "on_pit_road": "0", "caution": "1",
+        },
+    }
     names, teams = scrape_mod.driver_lookup(RECORDS)
     rows = scrape_mod.build_lap_rows(positions, metrics, names, teams)
     by_car = {row["car_number"]: row for row in rows}
     assert by_car["5"]["position"] == 1
     assert by_car["5"]["lap_time"] == "91.234"
     assert by_car["5"]["team"] == "Arrow McLaren"
+    assert by_car["5"]["caution"] == "1"
     # car 12 has no PDF metrics entry - fields fall back to empty/default
     assert by_car["12"]["lap_time"] == ""
     assert by_car["12"]["on_pit_road"] == "0"
+    assert by_car["12"]["caution"] == "0"
 
 
 def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
@@ -55,8 +62,14 @@ def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
     # empty - lap rows must still be built from `metrics` (Section Results).
     positions = {}
     metrics = {
-        ("5", "1"): {"lap_time": "91.234", "lap_speed": "180.5", "on_pit_road": "0"},
-        ("5", "2"): {"lap_time": "90.111", "lap_speed": "182.0", "on_pit_road": "0"},
+        ("5", "1"): {
+            "lap_time": "91.234", "lap_speed": "180.5",
+            "on_pit_road": "0", "caution": "0",
+        },
+        ("5", "2"): {
+            "lap_time": "90.111", "lap_speed": "182.0",
+            "on_pit_road": "0", "caution": "1",
+        },
     }
     names, teams = scrape_mod.driver_lookup(RECORDS)
     rows = scrape_mod.build_lap_rows(positions, metrics, names, teams)
@@ -64,7 +77,9 @@ def test_build_lap_rows_uses_metrics_when_no_lap_chart_positions():
     by_lap = {row["lap_number"]: row for row in rows}
     assert by_lap["1"]["lap_time"] == "91.234"
     assert by_lap["1"]["position"] is None
+    assert by_lap["1"]["caution"] == "0"
     assert by_lap["2"]["lap_time"] == "90.111"
+    assert by_lap["2"]["caution"] == "1"
 
 
 def _patch_load_race_deps(monkeypatch, positions_ok, metrics_ok):
@@ -112,6 +127,32 @@ def test_load_race_retries_after_failed_attempt(tmp_path, monkeypatch):
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=True)
     scrape_mod.load_race("9996")
     assert (tmp_path / "9996" / "6299" / scrape_mod.SESSION_PICKLE).exists()
+
+
+def _write_stub_pdfs(tmp_path, race_id, session_id="6299"):
+    session_dir = tmp_path / race_id / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "lapchart.pdf").write_bytes(b"stub")
+    (session_dir / "section.pdf").write_bytes(b"stub")
+    return session_dir
+
+
+def test_load_race_discards_pdfs_after_successful_cache(tmp_path, monkeypatch):
+    Cache.enable_cache(tmp_path)
+    session_dir = _write_stub_pdfs(tmp_path, "9995")
+    _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=True)
+    scrape_mod.load_race("9995")
+    assert not (session_dir / "lapchart.pdf").exists()
+    assert not (session_dir / "section.pdf").exists()
+
+
+def test_load_race_keeps_pdfs_when_parse_incomplete(tmp_path, monkeypatch):
+    Cache.enable_cache(tmp_path)
+    session_dir = _write_stub_pdfs(tmp_path, "9994")
+    _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=False)
+    scrape_mod.load_race("9994")
+    assert (session_dir / "lapchart.pdf").exists()
+    assert (session_dir / "section.pdf").exists()
 
 
 def test_load_race_raises_when_no_session_found(monkeypatch):

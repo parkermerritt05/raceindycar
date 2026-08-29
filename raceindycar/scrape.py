@@ -1,7 +1,7 @@
 from raceindycar.cache import Cache
 from raceindycar.iris import parse_session_date, race_session_id, session_details
 from raceindycar.logging import LOGGER
-from raceindycar.pdf_fetch import lap_chart_positions, pdf_metrics
+from raceindycar.pdf_fetch import discard_report_pdfs, lap_chart_positions, pdf_metrics
 
 SESSION_PICKLE = "session.ff1pkl"
 
@@ -12,7 +12,7 @@ def load_race(race_id, session_id=None):
     if not session_id:
         raise ValueError(f"No race session found for event {race_id}")
 
-    parsed = Cache.load_pickle(str(race_id), str(session_id), SESSION_PICKLE)
+    parsed = Cache.load_payload(str(race_id), str(session_id), SESSION_PICKLE)
     if parsed is not None:
         LOGGER.debug("pickle hit %s/%s", race_id, session_id)
         return parsed
@@ -31,10 +31,10 @@ def load_race(race_id, session_id=None):
         "race": race_record(race_id, details),
         "drivers": records,
         "laps": build_lap_rows(positions, metrics, names, teams),
-        "cautions": [],
     }
     if positions_ok and metrics_ok:
-        Cache.save_pickle(payload, str(race_id), str(session_id), SESSION_PICKLE)
+        Cache.save_payload(payload, str(race_id), str(session_id), SESSION_PICKLE)
+        discard_report_pdfs(race_id, session_id)
     return payload
 
 
@@ -48,7 +48,7 @@ def driver_lookup(records):
 
 
 def normalize_car(value):
-    text = str(value or "").strip()
+    text = str(value if value is not None else "").strip()
     return str(int(text)) if text.isdigit() else text
 
 
@@ -82,6 +82,7 @@ def build_lap_rows(positions, metrics, names, teams):
             "lap_speed": extra.get("lap_speed", ""),
             "lap_time": extra.get("lap_time", ""),
             "on_pit_road": extra.get("on_pit_road", "0"),
+            "caution": extra.get("caution", "0"),
             "team": teams.get(car, ""),
         })
     return rows

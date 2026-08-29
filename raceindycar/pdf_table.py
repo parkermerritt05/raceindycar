@@ -14,6 +14,10 @@ TABLE_SETTINGS = {
     "horizontal_strategy": "lines",
 }
 MIN_DATA_COLS = 3
+FLAG_COLUMN_INDEX = 2
+GREEN_FILL = (0.565, 0.933, 0.565)
+YELLOW_FILL = (1.0, 1.0, 0.0)
+FILL_TOLERANCE = 0.05
 
 
 def largest_data_table(page):
@@ -26,6 +30,65 @@ def largest_data_table(page):
     if not candidates:
         return None
     return max(candidates, key=lambda item: len(item[1]) * len(item[1][0]))
+
+
+def row_fill_flags(page, table):
+    """Classify each row of `table` as 'yellow' (caution), 'green', or ''.
+
+    IndyCar's Section Data report shades every cell in a lap row to show
+    whether it was run under caution (yellow) or green-flag racing (green);
+    that shading is a filled rectangle on the page, not exposed by
+    `table.extract()`'s text, so it has to be read from `page.rects`.
+    """
+    bounds = row_bounds(table)
+    x_range = column_x_range(table, FLAG_COLUMN_INDEX)
+    if not bounds or not x_range:
+        return ["" for _ in bounds]
+    mid_x = (x_range[0] + x_range[1]) / 2
+    fills = [
+        (rect["top"], rect["bottom"], rect["x0"], rect["x1"], rect.get("non_stroking_color"))
+        for rect in page.rects
+        if rect.get("fill")
+    ]
+    return [classify_fill(fill_color_at(fills, mid_x, top, bottom)) for top, bottom in bounds]
+
+
+def row_bounds(table):
+    by_top = {}
+    for _x0, top, _x1, bottom in table.cells:
+        key = round(top, 1)
+        by_top[key] = max(by_top.get(key, bottom), bottom)
+    return [(top, by_top[top]) for top in sorted(by_top)]
+
+
+def column_x_range(table, index):
+    cells = first_row_cells(table)
+    if index >= len(cells):
+        return None
+    x0, _top, x1, _bottom = cells[index]
+    return x0, x1
+
+
+def fill_color_at(fills, mid_x, top, bottom):
+    mid_y = (top + bottom) / 2
+    for rtop, rbottom, rx0, rx1, color in fills:
+        if rtop - 0.5 <= mid_y <= rbottom + 0.5 and rx0 - 0.5 <= mid_x <= rx1 + 0.5:
+            return color
+    return None
+
+
+def classify_fill(color):
+    if not color or len(color) != 3:
+        return ""
+    if colors_close(color, YELLOW_FILL):
+        return "yellow"
+    if colors_close(color, GREEN_FILL):
+        return "green"
+    return ""
+
+
+def colors_close(color, target):
+    return all(abs(c - t) <= FILL_TOLERANCE for c, t in zip(color, target))
 
 
 def label_columns(page, table):

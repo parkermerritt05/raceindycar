@@ -1,17 +1,13 @@
 import difflib
 import re
-import time
-from datetime import date
 
 import pandas as pd
 
 from raceindycar.iris import (
     event_sessions,
     find_session,
-    parse_session_date,
     pick_race_session,
     season_dropdown,
-    session_details,
 )
 from raceindycar.laps import build_laps
 from raceindycar.results import build_results
@@ -20,42 +16,32 @@ from raceindycar.scrape import load_race
 SERIES_PREFIX_RE = re.compile(
     r"^\d{4}\s+(?:ntt\s+)?(?:indycar\s+series\s+)?", re.I,
 )
+ORDINAL_RUNNING_PREFIX_RE = re.compile(
+    r"^\d+(?:st|nd|rd|th)\s+running\s+of\s+the\s+", re.I,
+)
 NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 RACE_ID_MIN = 1000
 FUZZY_CUTOFF = 0.6
-REQUEST_DELAY_SECONDS = 0.25
 
 
-def get_event_schedule(year, delay=REQUEST_DELAY_SECONDS):
+def get_event_schedule(year):
     dropdown = season_dropdown()
     block = next((b for b in dropdown if int(b["Year"]) == int(year)), None)
-    events = (block or {}).get("Events") or []
-    rows = [row for row in (schedule_row(year, e, delay) for e in events) if row]
-    rows.sort(key=lambda row: row["date"] or "9999")
+    events = reversed((block or {}).get("Events") or [])
+    rows = [row for row in (schedule_row(year, e) for e in events) if row]
+    for round_number, row in enumerate(rows, start=1):
+        row["round_number"] = round_number
     return EventSchedule(rows)
 
 
-def schedule_row(year, event, delay):
-    session = pick_race_session(event.get("Sessions") or [])
-    if not session:
+def schedule_row(year, event):
+    if not pick_race_session(event.get("Sessions") or []):
         return None
-    details = session_details(session["EventsSessionID"])
-    time.sleep(delay)
     return {
         "year": int(year),
         "race_id": str(event["EventID"]),
-        "EventName": details.get("EventName") or event.get("EventName") or "",
-        "date": parse_session_date(details.get("SessionDate")),
+        "EventName": event.get("EventName") or "",
     }
-
-
-def get_events_remaining(year=None):
-    year = int(year or date.today().year)
-    schedule = get_event_schedule(year)
-    if schedule.empty:
-        return schedule
-    parsed = pd.to_datetime(schedule["date"], errors="coerce")
-    return schedule[parsed.dt.date >= date.today()]
 
 
 def get_event(year, race):
@@ -73,8 +59,9 @@ def resolve_event_row(year, race):
         return hits.iloc[0]
     if is_round_number(race):
         round_num = int(race)
-        if 1 <= round_num <= len(schedule):
-            return schedule.iloc[round_num - 1]
+        hits = schedule[schedule["round_number"] == round_num]
+        if not hits.empty:
+            return hits.iloc[0]
         raise ValueError(
             f"Round {round_num} does not exist for {year} "
             f"(season has {len(schedule)} races)"
@@ -107,6 +94,7 @@ def match_event(schedule, query):
 
 def normalize_race_name(name):
     text = SERIES_PREFIX_RE.sub("", str(name or ""))
+    text = ORDINAL_RUNNING_PREFIX_RE.sub("", text)
     text = NON_ALNUM_RE.sub(" ", text.casefold())
     return " ".join(text.split())
 
@@ -200,12 +188,11 @@ class Session:
         self.year = event.year
         self.session = session
         self.name = name
-        self.date = event.date
+        self.date = getattr(event, "date", None)
         self._race_id = event.race_id
         self._session_id = session_id
         self.results = None
         self.laps = None
-        self.cautions = None
 
     def __repr__(self):
         return (
@@ -220,7 +207,6 @@ class Session:
         self.date = self.event.date
         self.laps = build_laps(payload["laps"])
         self.results = build_results(payload["drivers"], self.event, self.laps)
-        self.cautions = pd.DataFrame(payload.get("cautions") or [])
         return self
 
     def get_driver(self, identifier):

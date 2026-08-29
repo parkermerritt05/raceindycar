@@ -3,12 +3,13 @@ from pathlib import Path
 from raceindycar.pdf_scrape import enrichment_map, finalize_record
 
 EXAMPLE_PRACTICE_PDF = Path(__file__).resolve().parent / "example_practice_results.pdf"
+EXAMPLE_RACE_PDF = Path(__file__).resolve().parent / "example_race.pdf"
 
 
 def blank_record(**overrides):
     record = {
         "car_number": "12", "driver": "Power, Will", "lap": "1",
-        "lap_time": "", "lap_speed": "", "on_pit_road": "0",
+        "lap_time": "", "lap_speed": "", "on_pit_road": "0", "caution": "0",
         "sections": {}, "pits": {},
     }
     record.update(overrides)
@@ -74,8 +75,20 @@ def test_enrichment_map_parses_practice_section_results_pdf():
     (car, lap), values = next(iter(records.items()))
     assert car.isdigit()
     assert lap.isdigit()
-    assert set(values) == {"lap_time", "lap_speed", "on_pit_road"}
+    assert set(values) == {"lap_time", "lap_speed", "on_pit_road", "caution"}
 
     car_2_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
     assert car_2_laps["1"]["lap_time"] == "845.0893"
     assert car_2_laps["1"]["lap_speed"] == "9.619"
+
+
+def test_enrichment_map_flags_caution_laps_from_yellow_section_pdf():
+    # tests/example_race.pdf's first car runs lap 1 under green, then a
+    # caution flies for laps 2-9 (shaded yellow in the PDF, confirmed by the
+    # much slower pace-lap speeds), before going back to green at lap 10.
+    records = enrichment_map(EXAMPLE_RACE_PDF)
+    car_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
+    assert car_laps["1"]["caution"] == "0"
+    for lap in map(str, range(2, 10)):
+        assert car_laps[lap]["caution"] == "1"
+    assert car_laps["10"]["caution"] == "0"

@@ -34,7 +34,6 @@ session.load()
 
 session.results     # SessionResults: a pandas DataFrame of finishing order
 session.laps        # Laps: a pandas DataFrame of lap-by-lap timing
-session.cautions     # caution periods, if available
 
 # Look up a single driver from the loaded results
 driver = session.get_driver("Josef Newgarden")  # or car number / abbreviation
@@ -81,11 +80,13 @@ rows, failed = historical_rows(min_year=1996)
 This mirrors [FastF1's `Cache`](https://docs.fastf1.dev/api_reference/cache_and_rate_limits.html)
 API. Caching happens in two stages: raw HTTP responses are cached in a local
 sqlite database (via `requests-cache`), and fully-parsed session payloads are
-cached as pickles. Both are stored under the `cache_dir` you provide - there is
-no default location, so `cache_dir` is required:
+cached as pickle files by default, or as a directory of CSV files if you pass
+`cache_format="csv"`. Both are stored under the `cache_dir` you provide - there
+is no default location, so `cache_dir` is required:
 
 ```python
 raceindycar.enable_cache(cache_dir=".cache/fastindycar", force_renew=False)
+# raceindycar.enable_cache(cache_dir=".cache/fastindycar", cache_format="csv")
 
 from raceindycar.cache import Cache
 Cache.clear_cache()          # wipe Stage 2 (parsed/pickle) data, keep the HTTP cache

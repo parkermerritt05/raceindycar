@@ -9,12 +9,14 @@ from raceindycar.pdf_scrape import enrichment_map
 CDN_BASE = "http://www.imscdn.com/"
 SECTION_DOC_TYPE = "Section Results"
 LAP_CHART_DOC_TYPE = "Lap Chart"
+LAP_CHART_FILENAME = "lapchart.pdf"
+SECTION_FILENAME = "section.pdf"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
 def lap_chart_positions(race_id, session_id):
     try:
-        path = download_report_pdf(race_id, session_id, LAP_CHART_DOC_TYPE, "lapchart.pdf")
+        path = download_report_pdf(race_id, session_id, LAP_CHART_DOC_TYPE, LAP_CHART_FILENAME)
         if path is None:
             return {}, True
         positions = {
@@ -29,7 +31,7 @@ def lap_chart_positions(race_id, session_id):
 
 def pdf_metrics(race_id, session_id):
     try:
-        path = download_report_pdf(race_id, session_id, SECTION_DOC_TYPE, "section.pdf")
+        path = download_report_pdf(race_id, session_id, SECTION_DOC_TYPE, SECTION_FILENAME)
         if path is None:
             return {}, True
         metrics = {
@@ -40,6 +42,11 @@ def pdf_metrics(race_id, session_id):
     except Exception as exc:
         LOGGER.warning("PDF metrics failed for %s: %s", race_id, exc)
         return {}, False
+
+
+def discard_report_pdfs(race_id, session_id):
+    for filename in (LAP_CHART_FILENAME, SECTION_FILENAME):
+        Cache.path(str(race_id), str(session_id), filename).unlink(missing_ok=True)
 
 
 def download_report_pdf(race_id, session_id, doc_type, filename):
