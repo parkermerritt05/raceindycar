@@ -35,38 +35,48 @@ def largest_data_table(page):
 def row_fill_flags(page, table):
     """Classify each row of `table` as 'yellow' (caution), 'green', or ''.
 
-    IndyCar's Section Data report shades every cell in a lap row to show
-    whether it was run under caution (yellow) or green-flag racing (green);
-    that shading is a filled rectangle on the page, not exposed by
+    IndyCar's Section Data report shades each timing-loop cell in a lap row
+    to show whether that loop was crossed under caution (yellow) or
+    green-flag racing (green) - a caution can fly mid-lap, so different
+    cells in the same row can disagree; any yellow cell makes the row
+    'yellow'. That shading is a filled rectangle on the page, not exposed by
     `table.extract()`'s text, so it has to be read from `page.rects`.
     """
     bounds = row_bounds(table)
-    x_range = column_x_range(table, FLAG_COLUMN_INDEX)
-    if not bounds or not x_range:
+    mid_xs = column_mid_xs(table)
+    if not bounds or not mid_xs:
         return ["" for _ in bounds]
-    mid_x = (x_range[0] + x_range[1]) / 2
     fills = [
         (rect["top"], rect["bottom"], rect["x0"], rect["x1"], rect.get("non_stroking_color"))
         for rect in page.rects
         if rect.get("fill")
     ]
-    return [classify_fill(fill_color_at(fills, mid_x, top, bottom)) for top, bottom in bounds]
+    flags = []
+    for top, bottom in bounds:
+        colors = {classify_fill(fill_color_at(fills, mid_x, top, bottom)) for mid_x in mid_xs}
+        if "yellow" in colors:
+            flags.append("yellow")
+        elif "green" in colors:
+            flags.append("green")
+        else:
+            flags.append("")
+    return flags
 
 
 def row_bounds(table):
-    by_top = {}
-    for _x0, top, _x1, bottom in table.cells:
-        key = round(top, 1)
-        by_top[key] = max(by_top.get(key, bottom), bottom)
-    return [(top, by_top[top]) for top in sorted(by_top)]
+    tops = sorted({round(top, 1) for _x0, top, _x1, _bottom in table.cells})
+    if not tops:
+        return []
+    row_height = tops[1] - tops[0] if len(tops) > 1 else 0
+    return [
+        (top, tops[i + 1] if i + 1 < len(tops) else top + row_height)
+        for i, top in enumerate(tops)
+    ]
 
 
-def column_x_range(table, index):
-    cells = first_row_cells(table)
-    if index >= len(cells):
-        return None
-    x0, _top, x1, _bottom = cells[index]
-    return x0, x1
+def column_mid_xs(table):
+    cells = first_row_cells(table)[FLAG_COLUMN_INDEX:]
+    return [(x0 + x1) / 2 for x0, _top, x1, _bottom in cells]
 
 
 def fill_color_at(fills, mid_x, top, bottom):

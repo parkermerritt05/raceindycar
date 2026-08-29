@@ -18,7 +18,7 @@ print(f"Improted in {perf_counter() - start} seconds")
 print("Init globals")
 
 CACHE_DIR = ".cache/fastindycar"
-YEAR = 2024
+YEAR = 2022
 RACE_NAME = "Indianapolis 500"
 
 print("setting log level")
@@ -36,6 +36,17 @@ start = perf_counter()
 schedule = raceindycar.get_event_schedule(YEAR)
 print(f"\n{YEAR} schedule ({len(schedule)} races) loaded in {perf_counter() - start:.3f}s:")
 print(schedule)
+for i, row in schedule.iterrows():
+    if i > 6:
+        continue
+    start = perf_counter()
+    event = raceindycar.get_event(YEAR, row["race_id"])
+    race = event.get_session()
+    race.load()
+    laps = race.laps
+    cautions = laps.drop_duplicates(subset=['LapNumber'])
+    print(laps.head(20))
+    print(f"{row["EventName"]} {row["race_id"]} took {perf_counter() - start} seconds")
 
 event_by_name = schedule.get_event_by_name(RACE_NAME)
 print("\nEventSchedule.get_event_by_name:", event_by_name)
@@ -127,10 +138,7 @@ session.load()
 print(f"\noffline reload took {perf_counter() - start:.3f}s (cache only, no network)")
 raceindycar.Cache.offline_mode(False)
 
-with raceindycar.Cache.disabled():
-    start = perf_counter()
-    session.load()
-    print(f"Cache.disabled() load took {perf_counter() - start:.3f}s (fresh network fetch)")
+raceindycar.Cache.disabled()
 
 raceindycar.Cache.ci_mode(True)
 print("Cache.ci after ci_mode(True):", raceindycar.Cache.ci)

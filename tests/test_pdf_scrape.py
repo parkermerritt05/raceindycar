@@ -83,12 +83,13 @@ def test_enrichment_map_parses_practice_section_results_pdf():
 
 
 def test_enrichment_map_flags_caution_laps_from_yellow_section_pdf():
-    # tests/example_race.pdf's first car runs lap 1 under green, then a
-    # caution flies for laps 2-9 (shaded yellow in the PDF, confirmed by the
-    # much slower pace-lap speeds), before going back to green at lap 10.
+    # tests/example_race.pdf's first car: a caution flies partway through
+    # lap 1 (its Back Stretch/Turn 3/Turn 4/Front cells are shaded yellow,
+    # confirmed against the rendered page), stays yellow through lap 9
+    # (also shaded partway, confirmed by the much slower pace-lap speeds),
+    # then it's back to green at lap 10.
     records = enrichment_map(EXAMPLE_RACE_PDF)
     car_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
-    assert car_laps["1"]["caution"] == "0"
-    for lap in map(str, range(2, 10)):
+    for lap in map(str, range(1, 10)):
         assert car_laps[lap]["caution"] == "1"
     assert car_laps["10"]["caution"] == "0"
