@@ -1,4 +1,4 @@
-# fastindycar
+# raceindycar
 
 A [FastF1](https://github.com/theOehrly/Fast-F1)-style Python interface for
 IndyCar data: event schedules, session results, lap-by-lap timing, and
@@ -23,7 +23,7 @@ import raceindycar
 raceindycar.enable_cache(cache_dir=".cache/fastindycar")
 
 # Look up the schedule for a season
-schedule = raceindycar.get_event_schedule(2024)
+schedule = raceindycar.get_season_events(2024)
 
 # Get a specific event (by race id or fuzzy name match)
 event = raceindycar.get_event(2024, "Indianapolis 500")
@@ -60,10 +60,40 @@ import matplotlib.pyplot as plt
 from raceindycar import plotting
 
 plotting.setup_mpl()
+
+# By default, digit-only entries match DriverNumber and anything else matches
+# Driver by name; pass id_col to force which column is checked instead.
 fig, ax = plotting.plot_position(session, drivers=["12", "2"])
 fig, ax = plotting.plot_lap_times(session, drivers=["12", "2"])
-fig, ax = plotting.plot_bar(session, metric="Position")
+fig, ax = plotting.plot_position(session, drivers=["Josef Newgarden"], id_col="Driver")
+
 plt.show()  # each plot_* call only builds the figure - this displays them
+```
+
+### Qualifying/results plots
+
+The rest of `plotting` takes a plain `DataFrame` of results across one or more
+sessions (e.g. several rows from `session.results`, or your own aggregated
+data) rather than a `Session`, so column names are configurable via keyword
+arguments:
+
+```python
+from raceindycar import plotting
+
+# Start vs. finish position, with a linear trend line
+fig, ax = plotting.plot_qualifying_vs_finish(results, qualifying_col="PositionStart", finish_col="PositionFinish")
+
+# Histogram of positions gained/lost (PositionStart - PositionFinish by default,
+# or pass gain_col if you already have a precomputed gain column)
+fig, ax = plotting.plot_position_gain(results, qualifying_col="PositionStart", finish_col="PositionFinish")
+
+# Any numeric metric plotted against qualifying position, with a trend line
+fig, ax = plotting.plot_metric_vs_qualifying(results, metric_col="PointsEarned", qualifying_col="PositionStart")
+
+# One driver's start/finish position across races, in order
+fig, ax = plotting.plot_driver_trajectory(
+    results, id_col="Driver", id_value="Alex Palou", order_col="Year", label_col=None,
+)
 ```
 
 ## Caching

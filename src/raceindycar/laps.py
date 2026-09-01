@@ -1,5 +1,7 @@
 import pandas as pd
 
+from raceindycar.frames import drop_empty_columns
+
 QUICKLAP_THRESHOLD = 1.07
 TRUTHY_FLAGS = {"1", "true", "yes"}
 LAP_COLUMNS = {
@@ -14,6 +16,7 @@ LAP_COLUMNS = {
 }
 LAP_FIELDS = list(LAP_COLUMNS.values())
 NUMERIC_FIELDS = ("LapNumber", "Position", "LapTime", "LapSpeed")
+REQUIRED_LAP_FIELDS = {"Driver", "DriverNumber", "LapNumber"}
 
 
 def build_laps(rows):
@@ -24,7 +27,11 @@ def build_laps(rows):
         if field not in frame.columns:
             frame[field] = ""
     frame = coerce_numeric(normalize_numbers(frame))
-    return Laps(frame[LAP_FIELDS])
+    extra_fields = [c for c in frame.columns if c not in LAP_FIELDS]
+    for field in extra_fields:
+        frame[field] = pd.to_numeric(frame[field], errors="coerce")
+    ordered = frame[LAP_FIELDS + extra_fields]
+    return Laps(drop_empty_columns(ordered, REQUIRED_LAP_FIELDS))
 
 
 def normalize_numbers(frame):
@@ -78,19 +85,20 @@ class Laps(pd.DataFrame):
             return self.iloc[0:0]
         return racing[times <= fastest * threshold]
 
-    def pick_drivers(self, drivers):
+    def pick_drivers(self, drivers, column=None):
         mask = False
         for driver in as_list(drivers):
-            mask = mask | self._driver_mask(driver)
+            mask = mask | self._driver_mask(driver, column)
         return self[mask]
 
-    def _driver_mask(self, driver):
+    def _driver_mask(self, driver, column=None):
         text = str(driver).strip()
-        numbers = self["DriverNumber"].astype(str)
+        column = column or ("DriverNumber" if text.isdigit() else "Driver")
+        values = self[column].astype(str)
         if text.isdigit():
-            return numbers == str(int(text))
-        names = self["Driver"].astype(str).str.casefold()
-        return names == text.casefold()
+            normalized = values.where(~values.str.isdigit(), values.map(lambda v: str(int(v))))
+            return normalized == str(int(text))
+        return values.str.casefold() == text.casefold()
 
 
 def as_list(value):

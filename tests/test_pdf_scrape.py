@@ -92,7 +92,7 @@ def test_enrichment_map_parses_practice_section_results_pdf():
     (car, lap), values = next(iter(records.items()))
     assert car.isdigit()
     assert lap.isdigit()
-    assert set(values) == {"lap_time", "lap_speed", "on_pit_road"}
+    assert set(values) == {"lap_time", "lap_speed", "on_pit_road", "sections", "pits"}
 
     car_2_laps = {lap: values for (c, lap), values in records.items() if c == "2"}
     assert car_2_laps["1"]["lap_time"] == "845.0893"

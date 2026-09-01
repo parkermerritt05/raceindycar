@@ -4,7 +4,7 @@ from raceindycar.events import (
     EventSchedule,
     Session,
     get_event,
-    get_event_schedule,
+    get_season_events,
     get_session,
 )
 from raceindycar.laps import Laps
@@ -20,7 +20,7 @@ __all__ = [
     "SessionResults",
     "enable_cache",
     "get_event",
-    "get_event_schedule",
+    "get_season_events",
     "get_session",
     "set_log_level",
 ]

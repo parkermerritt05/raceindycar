@@ -9,7 +9,7 @@ from raceindycar.iris import (
     pick_race_session,
     season_dropdown,
 )
-from raceindycar.laps import build_laps
+from raceindycar.laps import build_laps, compact_car_number
 from raceindycar.results import build_results
 from raceindycar.scrape import load_race
 
@@ -24,7 +24,7 @@ RACE_ID_MIN = 1000
 FUZZY_CUTOFF = 0.6
 
 
-def get_event_schedule(year):
+def get_season_events(year):
     dropdown = season_dropdown()
     block = next((b for b in dropdown if int(b["Year"]) == int(year)), None)
     events = reversed((block or {}).get("Events") or [])
@@ -49,7 +49,7 @@ def get_event(year, race):
 
 
 def resolve_event_row(year, race):
-    schedule = get_event_schedule(year)
+    schedule = get_season_events(year)
     if schedule.empty:
         raise ValueError(f"No IndyCar races found for {year}")
     if is_race_id(race):
@@ -171,7 +171,8 @@ def get_session(year, race, session="R"):
 def lookup_driver(results, identifier):
     text = str(identifier).strip()
     if text.isdigit():
-        hits = results[results["DriverNumber"] == str(int(text))]
+        numbers = results["CarNumber"].map(compact_car_number)
+        hits = results[numbers == str(int(text))]
     else:
         hits = results[results["Abbreviation"] == text.upper()]
         if hits.empty:
@@ -200,12 +201,13 @@ class Session:
             f"name={self.name!r}, date={self.date!r}, year={self.year!r})"
         )
 
-    def load(self):
-        payload = load_race(self._race_id, self._session_id)
+    def load(self, laps=False):
+        payload = load_race(self._race_id, self._session_id, laps=laps)
         self.event = Event(payload["race"])
         self.event.year = self.year
         self.date = self.event.date
-        self.laps = build_laps(payload["laps"])
+        if laps:
+            self.laps = build_laps(payload["laps"])
         self.results = build_results(payload["drivers"], self.event, self.laps)
         return self
 

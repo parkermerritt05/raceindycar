@@ -21,6 +21,8 @@ def enrichment_map(pdf_path):
             "lap_time": row["lap_time"],
             "lap_speed": row["lap_speed"],
             "on_pit_road": row["on_pit_road"],
+            "sections": row["sections"],
+            "pits": row["pits"],
         }
         for row in scrape_pdf(pdf_path)
     }

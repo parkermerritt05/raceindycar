@@ -1,5 +1,7 @@
 import pandas as pd
 
+from raceindycar.frames import drop_empty_columns
+
 ABBREV_LEN = 3
 RACE_COLUMNS = {
     "race_id": "RaceId",
@@ -8,6 +10,15 @@ RACE_COLUMNS = {
     "track_type": "TrackType",
     "actual_laps": "ActualLaps",
 }
+REQUIRED_RESULT_FIELDS = {
+    "DriversID", "FirstName", "LastName", "FullName", "Abbreviation",
+    "CarNumber", "Team", "PositionFinish", *RACE_COLUMNS.values(),
+}
+NUMBER_COERCED_FIELDS = {
+    "PositionStart", "PositionFinish", "PointsEarned",
+    "LapsComplete", "LapsLed", "TimesLed", "PitStops",
+}
+FLOAT_COERCED_FIELDS = {"BestSpeed", "SpeedAvg"}
 
 
 def build_results(records, event, laps=None):
@@ -17,7 +28,8 @@ def build_results(records, event, laps=None):
     if not rows:
         return SessionResults(columns=result_columns())
     frame = SessionResults(rows)
-    return frame.sort_values("Position", na_position="last").reset_index(drop=True)
+    frame = frame.sort_values("PositionFinish", na_position="last").reset_index(drop=True)
+    return drop_empty_columns(frame, REQUIRED_RESULT_FIELDS)
 
 
 class SessionResults(pd.DataFrame):
@@ -39,25 +51,17 @@ def driver_result_row(record, event, teams):
         number = str(int(number))
     first = record.get("FirstName", "")
     last = record.get("LastName", "")
-    row = {
-        "DriverId": record.get("DriversID", ""),
-        "FirstName": first,
-        "LastName": last,
-        "FullName": record.get("DriverName") or f"{first} {last}".strip(),
-        "Abbreviation": abbreviation_for(last),
-        "DriverNumber": number,
-        "Team": record.get("TeamName") or teams.get(number, ""),
-        "GridPosition": to_number(record.get("PositionStart")),
-        "Position": to_number(record.get("PositionFinish")),
-        "Status": record.get("Status", ""),
-        "Points": to_number(record.get("PointsEarned")),
-        "Laps": to_number(record.get("LapsComplete")),
-        "LapsLed": to_number(record.get("LapsLed")),
-        "TimesLed": to_number(record.get("TimesLed")),
-        "PitStops": to_number(record.get("PitStops")),
-        "FastestLapSpeed": to_float(record.get("BestSpeed")),
-        "AvgLapSpeed": to_float(record.get("SpeedAvg")),
-    }
+
+    row = dict(record)
+    for field in NUMBER_COERCED_FIELDS:
+        if field in row:
+            row[field] = to_number(row[field])
+    for field in FLOAT_COERCED_FIELDS:
+        if field in row:
+            row[field] = to_float(row[field])
+    row["FullName"] = record.get("DriverName") or f"{first} {last}".strip()
+    row["Abbreviation"] = abbreviation_for(last)
+    row["Team"] = record.get("TeamName") or teams.get(number, "")
     row.update(copy_race_fields(event))
     return row
 
@@ -89,10 +93,4 @@ def copy_race_fields(event):
 
 
 def result_columns():
-    return [
-        "DriverId", "FirstName", "LastName", "FullName", "Abbreviation",
-        "DriverNumber", "Team", "GridPosition", "Position", "Status", "Points",
-        "Laps", "LapsLed", "TimesLed", "PitStops", "FastestLapSpeed",
-        "AvgLapSpeed",
-        *RACE_COLUMNS.values(),
-    ]
+    return sorted(REQUIRED_RESULT_FIELDS)

@@ -96,32 +96,32 @@ def _patch_load_race_deps(monkeypatch, positions_ok, metrics_ok):
 def test_load_race_skips_cache_when_pdf_metrics_fail(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=False)
-    scrape_mod.load_race("9999")
+    scrape_mod.load_race("9999", laps=True)
     assert not (tmp_path / "9999" / "6299" / scrape_mod.SESSION_PICKLE).exists()
 
 
 def test_load_race_skips_cache_when_lap_chart_fails(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     _patch_load_race_deps(monkeypatch, positions_ok=False, metrics_ok=True)
-    scrape_mod.load_race("9997")
+    scrape_mod.load_race("9997", laps=True)
     assert not (tmp_path / "9997" / "6299" / scrape_mod.SESSION_PICKLE).exists()
 
 
 def test_load_race_caches_on_success(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=True)
-    scrape_mod.load_race("9998")
+    scrape_mod.load_race("9998", laps=True)
     assert (tmp_path / "9998" / "6299" / scrape_mod.SESSION_PICKLE).exists()
 
 
 def test_load_race_retries_after_failed_attempt(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=False)
-    scrape_mod.load_race("9996")
+    scrape_mod.load_race("9996", laps=True)
     assert not (tmp_path / "9996" / "6299" / scrape_mod.SESSION_PICKLE).exists()
 
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=True)
-    scrape_mod.load_race("9996")
+    scrape_mod.load_race("9996", laps=True)
     assert (tmp_path / "9996" / "6299" / scrape_mod.SESSION_PICKLE).exists()
 
 
@@ -137,7 +137,7 @@ def test_load_race_discards_pdfs_after_successful_cache(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     session_dir = _write_stub_pdfs(tmp_path, "9995")
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=True)
-    scrape_mod.load_race("9995")
+    scrape_mod.load_race("9995", laps=True)
     assert not (session_dir / "lapchart.pdf").exists()
     assert not (session_dir / "section.pdf").exists()
 
@@ -146,7 +146,7 @@ def test_load_race_keeps_pdfs_when_parse_incomplete(tmp_path, monkeypatch):
     Cache.enable_cache(tmp_path)
     session_dir = _write_stub_pdfs(tmp_path, "9994")
     _patch_load_race_deps(monkeypatch, positions_ok=True, metrics_ok=False)
-    scrape_mod.load_race("9994")
+    scrape_mod.load_race("9994", laps=True)
     assert (session_dir / "lapchart.pdf").exists()
     assert (session_dir / "section.pdf").exists()
 

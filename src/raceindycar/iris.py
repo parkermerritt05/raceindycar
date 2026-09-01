@@ -75,6 +75,12 @@ def pick_race_session(sessions):
 
 def pick_session(sessions, query):
     sessions = sessions or []
+    text = str(query).strip()
+    if text.isdigit():
+        for session in sessions:
+            if str(session.get("EventsSessionID")) == text:
+                return session
+
     names = [normalize_session_name(s.get("SessionName")) for s in sessions]
     needle = SESSION_ALIASES.get(normalize_session_name(query), normalize_session_name(query))
 

@@ -45,8 +45,8 @@ def get_driver_style(identifier, session):
 def teammate_index(driver, session):
     team = driver.get("Team", "")
     mates = session.results[session.results["Team"] == team]
-    numbers = list(mates["DriverNumber"].astype(str))
-    number = str(driver.get("DriverNumber", ""))
+    numbers = list(mates["CarNumber"].astype(str))
+    number = str(driver.get("CarNumber", ""))
     if number in numbers:
         return numbers.index(number)
     return 0

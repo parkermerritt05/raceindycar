@@ -181,19 +181,19 @@ PAYLOAD = {
 
 def test_save_and_load_payload_pickle_round_trip(tmp_path):
     Cache.enable_cache(tmp_path, cache_format="pickle")
-    Cache.save_payload(PAYLOAD, "race123", "sess456", "session.ff1pkl")
-    assert (tmp_path / "race123" / "sess456" / "session.ff1pkl").exists()
-    assert Cache.load_payload("race123", "sess456", "session.ff1pkl") == PAYLOAD
+    Cache.save_payload(PAYLOAD, "race123", "sess456", "session.pkl")
+    assert (tmp_path / "race123" / "sess456" / "session.pkl").exists()
+    assert Cache.load_payload("race123", "sess456", "session.pkl") == PAYLOAD
 
 
 def test_save_and_load_payload_csv_round_trip(tmp_path):
     Cache.enable_cache(tmp_path, cache_format="csv")
-    Cache.save_payload(PAYLOAD, "race123", "sess456", "session.ff1pkl")
+    Cache.save_payload(PAYLOAD, "race123", "sess456", "session.pkl")
     directory = tmp_path / "race123" / "sess456" / "session_csv"
     assert directory.is_dir()
     assert (directory / "drivers.csv").exists()
 
-    loaded = Cache.load_payload("race123", "sess456", "session.ff1pkl")
+    loaded = Cache.load_payload("race123", "sess456", "session.pkl")
     assert loaded["race"]["EventName"] == PAYLOAD["race"]["EventName"]
     # numeric-looking text comes back as int/float (CSV has no string/number
     # distinction) - callers normalize these fields with str()/int() anyway.
@@ -208,9 +208,9 @@ def test_save_and_load_payload_csv_round_trip(tmp_path):
 
 def test_load_payload_csv_missing_cache_returns_none(tmp_path):
     Cache.enable_cache(tmp_path, cache_format="csv")
-    assert Cache.load_payload("nope", "nope", "session.ff1pkl") is None
+    assert Cache.load_payload("nope", "nope", "session.pkl") is None
 
 
 def test_load_payload_pickle_missing_cache_returns_none(tmp_path):
     Cache.enable_cache(tmp_path, cache_format="pickle")
-    assert Cache.load_payload("nope", "nope", "session.ff1pkl") is None
+    assert Cache.load_payload("nope", "nope", "session.pkl") is None

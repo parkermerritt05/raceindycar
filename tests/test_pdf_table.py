@@ -18,6 +18,15 @@ def test_repair_ts_bleed_noop_when_already_clean():
     assert repair_ts_bleed(labels) == ["Lap", "T/S", "Turn 1"]
 
 
+def test_repair_ts_bleed_strips_stray_s_from_next_column():
+    # The trailing "S" of the "T/S" header occasionally also gets attributed
+    # to the immediately-following section column (a boundary-tolerance
+    # artifact in label_columns' word-to-cell assignment), duplicating it
+    # rather than stealing it from "T/S" itself.
+    labels = ["Lap", "T/S", "S Turn 10", "Turn 11"]
+    assert repair_ts_bleed(labels) == ["Lap", "T/S", "Turn 10", "Turn 11"]
+
+
 def test_repair_split_lap_header_strips_bleed_and_keeps_lap():
     labels = ["Sect L", "Lap", "Turn 1"]
     assert repair_split_lap_header(labels) == ["Sect", "Lap", "Turn 1"]

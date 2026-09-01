@@ -87,6 +87,8 @@ def repair_ts_bleed(labels):
         labels[1] = "T/S"
         if rest:
             labels[2] = f"{rest} {labels[2]}".strip()
+    if labels[1] == "T/S" and labels[2].startswith("S "):
+        labels[2] = labels[2][2:].strip()
     if labels[2].startswith("to ") and not labels[2].upper().startswith("TO I"):
         labels[2] = f"SF {labels[2]}".strip()
     return labels

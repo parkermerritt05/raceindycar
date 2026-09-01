@@ -31,16 +31,16 @@ def make_event():
 
 def test_driver_result_row_maps_iris_fields():
     row = driver_result_row(RAW_RECORD, make_event(), teams={})
-    assert row["DriverId"] == "1234"
+    assert row["DriversID"] == "1234"
     assert row["FirstName"] == "Test"
     assert row["LastName"] == "Driver"
     assert row["FullName"] == "Test Driver"
     assert row["Abbreviation"] == "DRI"
-    assert row["DriverNumber"] == "9"
-    assert row["GridPosition"] == 5
-    assert row["Position"] == 1
-    assert row["FastestLapSpeed"] == 200.5
-    assert row["AvgLapSpeed"] == 195.2
+    assert row["CarNumber"] == "9"
+    assert row["PositionStart"] == 5
+    assert row["PositionFinish"] == 1
+    assert row["BestSpeed"] == 200.5
+    assert row["SpeedAvg"] == 195.2
 
 
 def test_driver_result_row_falls_back_to_team_lookup():
@@ -50,7 +50,7 @@ def test_driver_result_row_falls_back_to_team_lookup():
 
 def test_result_columns_no_longer_include_lapraptor_only_fields():
     columns = result_columns()
-    for name in ("DriverId", "FirstName", "LastName", "FullName", "Abbreviation"):
+    for name in ("DriversID", "FirstName", "LastName", "FullName", "Abbreviation"):
         assert name in columns
     for name in ("GrLr", "Rr", "Pgae"):
         assert name not in columns
@@ -58,8 +58,8 @@ def test_result_columns_no_longer_include_lapraptor_only_fields():
 
 def test_build_results_frame_exposes_mapped_fields():
     frame = build_results([RAW_RECORD], make_event(), laps=None)
-    assert frame.iloc[0]["DriverId"] == "1234"
-    assert frame.iloc[0]["Position"] == 1
+    assert frame.iloc[0]["DriversID"] == "1234"
+    assert frame.iloc[0]["PositionFinish"] == 1
 
 
 def test_build_results_skips_deleted_records():
