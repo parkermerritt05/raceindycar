@@ -8,6 +8,9 @@ version = "1.0"
 description = "IndyCar data access, similar to FastF1"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Parker Merritt", email = "parkermerritt05@gmail.com" },
+]
 dependencies = [
     "pandas",
     "requests",
@@ -20,6 +23,10 @@ classifiers = ["Programming Language :: Python :: 3",
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 
+[project.urls]
+Homepage = "https://github.com/parkermerritt05/raceindycar"
+Repository = "https://github.com/parkermerritt05/raceindycar"
+Issues = "https://github.com/parkermerritt05/raceindycar/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
