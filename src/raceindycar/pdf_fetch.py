@@ -45,6 +45,8 @@ def pdf_metrics(race_id, session_id):
 
 
 def discard_report_pdfs(race_id, session_id):
+    if Cache.directory is None:
+        return
     for filename in (LAP_CHART_FILENAME, SECTION_FILENAME):
         Cache.path(str(race_id), str(session_id), filename).unlink(missing_ok=True)
 

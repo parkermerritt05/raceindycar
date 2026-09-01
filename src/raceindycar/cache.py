@@ -142,7 +142,7 @@ class Cache:
 
     @classmethod
     def _session_for_request(cls):
-        if cls.enabled and cls.use_requests_cache:
+        if cls.enabled and cls.use_requests_cache and cls.directory is not None:
             return cls._cached_session()
         return cls._plain_session()
 
@@ -178,6 +178,8 @@ class Cache:
 
     @classmethod
     def load_payload(cls, *parts):
+        if cls.directory is None:
+            return None
         path = cls.path(*parts)
         if cls.cache_format == "csv":
             return cls._load_csv(cls._csv_dir(path))
@@ -185,6 +187,8 @@ class Cache:
 
     @classmethod
     def save_payload(cls, payload, *parts):
+        if cls.directory is None:
+            return
         path = cls.path(*parts)
         if cls.cache_format == "csv":
             cls._save_csv(payload, cls._csv_dir(path))
@@ -259,14 +263,13 @@ class Cache:
     @classmethod
     def path(cls, *parts):
         if cls.directory is None:
-            raise RuntimeError(
-                "No cache directory configured - call "
-                "raceindycar.enable_cache(cache_dir=...) first."
-            )
+            return None
         return cls.directory.joinpath(*parts)
 
     @classmethod
     def should_read(cls, path, ttl=None):
+        if path is None or cls.directory is None:
+            return False
         if not cls.enabled or cls.force_renew:
             return False
         if not path.exists() or path.stat().st_size == 0:
@@ -277,7 +280,7 @@ class Cache:
 
     @classmethod
     def should_write(cls):
-        return cls.enabled and not cls.offline
+        return cls.directory is not None and cls.enabled and not cls.offline
 
     @classmethod
     def write_text(cls, path, text):
@@ -291,19 +294,21 @@ class Cache:
 
     @classmethod
     def delete_response(cls, url):
-        if not (cls.enabled and cls.use_requests_cache):
+        if not (cls.enabled and cls.use_requests_cache) or cls.directory is None:
             return
         cls._cached_session().cache.delete(urls=[url])
 
     @classmethod
     def get_cache_info(cls):
-        if not cls.directory.exists():
+        if cls.directory is None or not cls.directory.exists():
             return None, None
         return str(cls.directory), cache_size(cls.directory)
 
     @classmethod
     def clear_cache(cls, cache_dir=None, deep=False):
         root = Path(cache_dir) if cache_dir else cls.directory
+        if root is None:
+            return
         clear_cache_dir(root, keep_http_cache=not deep)
 
     @classmethod

@@ -1,126 +1,155 @@
-# raceindycar
+## RaceIndyCar Intro
 
-A [FastF1](https://github.com/theOehrly/Fast-F1)-style Python interface for
-IndyCar data: event schedules, session results, lap-by-lap timing, and
-quick plotting helpers, built on top of publicly available IndyCar timing
-and scoring data.
+RaceIndyCar is a Python pip-installable package to obtain and analyze IndyCar data. By scraping information from the official IndyCar.com website, we can examine all weekend events and their corresponding sessions.
+
+The specific information we have available depends on the session and release date. For example, not all races have the same number of practice sessions. Additionally, Lap-by-lap data is only available for 2013 and beyond (with all data being from 1996-Present).
 
 ## Installation
 
+RaceIndyCar is pip installable, or available on [PyPI](https://pypi.org/project/raceindycar)
+
 ```bash
-pip install raceindycar.
+pip install raceindycar
 ```
 
-Requires Python 3.10+. Dependencies (`pandas`, `requests`, `requests-cache`,
-`pdfplumber`, `matplotlib`) are installed automatically.
+Requires Python 3.10+. Dependencies (`pandas`, `requests`, `requests-cache`, `pdfplumber`, `matplotlib`) are installed automatically.
 
-## Quick start
+## Data Retrieval
+
+In an IndyCar season, there are around 17 race events that occur. Each race event typically spans a weekend, where within that event there are individual sessions (such as practices, qualifying, and the race itself). We use this idea of events and sessions in our implementation:
 
 ```python
 import raceindycar
 
-# Optional: cache scraped/parsed data to disk between runs
-raceindycar.enable_cache(cache_dir=".cache/fastindycar")
+# Get all events for a given year
+races = raceindycar.get_season_events(2025)
 
-# Look up the schedule for a season
-schedule = raceindycar.get_season_events(2024)
+# Returns an Event with attributes for each schedule column. The second argument does a fuzzy name match to find an event, or use a round number/integer event id found in the schedule.
+indy25 = raceindycar.get_event(2025, "Indianapolis 500")
 
-# Get a specific event (by race id or fuzzy name match)
-event = raceindycar.get_event(2024, "Indianapolis 500")
+# Identify all sessions (such as practices and qualifying) for the event.
+session_info = indy25.sessions
 
-# Load a session's results and lap data
-session = raceindycar.get_session(2024, "Indianapolis 500")
-session.load()
+# Get a specific session from an event. The session argument can either be an EventsSessionID or a SessionName string (you can find what's available using session_info)
+race_session = indy25.get_session(session="R")
 
-session.results     # SessionResults: a pandas DataFrame of finishing order
-session.laps        # Laps: a pandas DataFrame of lap-by-lap timing
+# Load data for that session, and optionally loads all lap-by-lap data
+race_session.load()
 
-# Look up a single driver from the loaded results
-driver = session.get_driver("Josef Newgarden")  # or car number / abbreviation
+# A Pandas Dataframe of race data, including start position, finish position, average speed, etc.
+race_session.results
 ```
 
-## Working with laps and results
+It is not required to get an event and then get a session from that event as shown above. We can go straight to a session for a weekend:
+ 
+```Python
+det25_race = raceindycar.get_session(2025, "Detroit Grand Prix", session="R")
+```
 
-`Laps` and `SessionResults` are pandas `DataFrame` subclasses. `Laps` adds a few convenience filters:
+From a session, we can obtain the lap-by-lap data, with information on every section of an indycar track. Lap results from a given session are scraped from pdfs that are around 500 pages long, so loading laps can take anywhere from 30-100 seconds.
 
-```python
-session.laps.pick_drivers(["12", "2"])   # by car number or driver name
-session.laps.pick_teams("Team Penske")
-session.laps.pick_wo_pit()               # exclude pit-road laps
-session.laps.pick_quicklaps()            # laps within threshold of fastest
-session.laps.pick_fastest()
-session.laps.pick_laps(range(1, 21))
+```Python
+race_session.load(laps=True)
+
+# A Pandas Dataframe of each lap, including sectional and position data
+laps = race_session.laps
+```
+
+Additionally, there are some convenience filters for lap data for accessibility. Note that teams names and drivers can either be a string or a list:
+
+```Python
+laps.pick_drivers(["12", "2"]) # Use car number or driver name.
+laps.pick_teams("Team Penske")
+
+laps.pick_wo_pit() # Excludes pit-road laps
+laps.pick_quicklaps(threshold=1.07) # Laps within threshold of fastest.
+laps.pick_fastest()
+laps.pick_laps(range(1, 21))
 ```
 
 ## Plotting
 
-```python
-import matplotlib.pyplot as plt
+RaceIndyCar also offers six plotting functions with preset colors for drivers and teams. The default arguments for all of these functions will work for the given IndyCar data, but can be manipulated to take in an arbitrary racing dataframe.
 
+The first two plotting functions can be run for drivers of a specified race.
+
+```Python
+import matplotlib.pyplot as plt
 from raceindycar import plotting
 
+det25_race.load(laps=True)
+
+drivers = ["10", "5"]
+
+# Set up default coloring
 plotting.setup_mpl()
 
-# By default, digit-only entries match DriverNumber and anything else matches
-# Driver by name; pass id_col to force which column is checked instead.
-fig, ax = plotting.plot_position(session, drivers=["12", "2"])
-fig, ax = plotting.plot_lap_times(session, drivers=["12", "2"])
-fig, ax = plotting.plot_position(session, drivers=["Josef Newgarden"], id_col="Driver")
+# Position-by-lap line chart
+fig, ax = plotting.plot_position(det25_race, drivers=drivers)
 
-plt.show()  # each plot_* call only builds the figure - this displays them
+# Lap time line chart
+fig, ax = plotting.plot_lap_times(det25_race, drivers=drivers)
+
+plt.show()
 ```
 
-### Qualifying/results plots
+Additionally, we can plot information for multiple races:
 
-The rest of `plotting` takes a plain `DataFrame` of results across one or more
-sessions (e.g. several rows from `session.results`, or your own aggregated
-data) rather than a `Session`, so column names are configurable via keyword
-arguments:
+```Python
+import pandas as pd
 
-```python
-from raceindycar import plotting
+det26_race = raceindycar.get_session(2026, "Detroit Grand Prix", session="R")
+det26_race.load(laps=True)
 
-# Start vs. finish position, with a linear trend line
-fig, ax = plotting.plot_qualifying_vs_finish(results, qualifying_col="PositionStart", finish_col="PositionFinish")
+combined_results = pd.concat([
+    det25_race.results.assign(Year=2025),
+    det26_race.results.assign(Year=2026),
+])
 
-# Histogram of positions gained/lost (PositionStart - PositionFinish by default,
-# or pass gain_col if you already have a precomputed gain column)
-fig, ax = plotting.plot_position_gain(results, qualifying_col="PositionStart", finish_col="PositionFinish")
+# Scatter of starting position vs finishing position with trend line
+fig, ax = plotting.plot_qualifying_vs_finish(combined_results)
 
-# Any numeric metric plotted against qualifying position, with a trend line
-fig, ax = plotting.plot_metric_vs_qualifying(results, metric_col="PointsEarned", qualifying_col="PositionStart")
+# Histogram of positions gained/lost from start to finish
+fig, ax = plotting.plot_position_gain(combined_results)
 
-# One driver's start/finish position across races, in order
+# Scatter of a results metric vs qualifying position, with trend line
+fig, ax = plotting.plot_metric_vs_qualifying(combined_results, metric_col="PointsEarned")
+
+# Plots a driver's start and finish position
 fig, ax = plotting.plot_driver_trajectory(
-    results, id_col="Driver", id_value="Alex Palou", order_col="Year", label_col=None,
+    combined_results, id_col="Driver", id_value="Alex Palou", order_col="Year",
 )
+
+plt.show()
 ```
 
 ## Caching
 
-This mirrors [FastF1's `Cache`](https://docs.fastf1.dev/api_reference/cache_and_rate_limits.html)
-API. Caching happens in two stages: raw HTTP responses are cached in a local
-sqlite database (via `requests-cache`), and fully-parsed session payloads are
-cached as pickle files by default, or as a directory of CSV files if you pass
-`cache_format="csv"`. Both are stored under the `cache_dir` you provide - there
-is no default location, so `cache_dir` is required:
+This library mirrors [FastF1's `Cache`](https://docs.fastf1.dev/api_reference/cache_and_rate_limits.html) API, and there are two stages for caching. The first stage uses an sqlite table to store HTTP requests and results for IndyCar.com. The second stage stores Pickle/CSV files that contain information from loading a race.
 
-```python
-raceindycar.enable_cache(cache_dir=".cache/fastindycar", force_renew=False)
-# raceindycar.enable_cache(cache_dir=".cache/fastindycar", cache_format="csv")
+Requests are rate limited to around one request per two seconds.
 
+```Python
 from raceindycar.cache import Cache
-Cache.clear_cache()          # wipe Stage 2 (parsed/pickle) data, keep the HTTP cache
-Cache.clear_cache(deep=True) # also wipe the Stage 1 HTTP cache
-Cache.offline_mode(True)     # never hit the network; raise if nothing is cached
-Cache.ci_mode(True)          # reuse expired HTTP cache entries; skip Stage 2 caching
-Cache.delete_response(url)   # drop a single cached HTTP response
-with Cache.disabled():
-    ...                      # temporarily bypass the cache
 
-# Requests are also rate-limited (soft throttling, then a hard
-# raceindycar.exceptions.RateLimitExceededError); cache hits don't count.
+# Enable Cache with specified directory. Use either "pickle" or "csv" format.
+raceindycar.enable_cache(cache_dir=".cache/raceindycar", cache_format="pickle")
+
+# Wipe Stage 2 (parsed/pickle) data, keep the HTTP cache. Optionally, wipe all Stage 1 HTTP requests with deep=True.
+Cache.clear_cache(deep=False)
+
+# Never hit the network and only uses cached data, raising an error if the data is not found locally.
+Cache.offline_mode(True)
+
+with Cache.disabled():
+    ...  # temporarily bypass the cache
 ```
+
+## Summary and Application
+
+Through utilizing official IndyCar.com data, RaceIndyCar obtains session level data, even down to individual section times for every lap. We can store this information for reuse and plot key metrics.
+
+Applying this at a weekend level, we can see how qualifying lap times associate with race lap times for individual drivers. On a multi-race level, we can start to identify patterns and trends to create actionable results, such as identifying optimal practice time, resource allocation to adjusting the car from qualifying to race day, and more.
 
 ## Development
 
