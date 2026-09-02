@@ -117,7 +117,7 @@ fig, ax = plotting.plot_metric_vs_qualifying(combined_results, metric_col="Point
 
 # Plots a driver's start and finish position
 fig, ax = plotting.plot_driver_trajectory(
-    combined_results, id_col="Driver", id_value="Alex Palou", order_col="Year",
+    combined_results, id_col="FullName", id_value="Alex Palou", order_col="Year",
 )
 
 plt.show()
